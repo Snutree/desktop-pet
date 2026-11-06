@@ -4,8 +4,13 @@
   "description": "灵犀：剪贴板收藏整理 + 密码本 + 消息中枢（常驻秒开）",
   "main": "out/main/index.js",
   "author": "河北省合光尘软件有限公司",
-  "license": "MIT",
+  "license": "UNLICENSED",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Snutree/desktop-pet.git"
+  },
+  "homepage": "https://heguangchen.com",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",

@@ -53,19 +53,20 @@
 
 ## 三、任务清单
 
-### T1 版本控制与机密清理
-- [ ] `git init`（建议在 `desktop-pet` 目录单独建仓库；若想三个项目一起管，可在 `F:\GitHub\zhongshu` 建）。
-- [ ] 新建 `.gitignore`：`node_modules/`、`out/`、`release/`、`*.log`、`.tmp-*/`、`*.pvlt`、`datahub.json`、`vault-settings.json`、`*.db`、`*.db-*`、`.vscode/`。
-- [ ] **删除 `dev-run.log`**（含真实 key）；`PROJECT.md` 里保证只有占位符，不出现真实 key。
-- [ ] 扫描仓库：`key=`、`token`、`secret`、`*.pvlt`、`*.db`，确认无敏感数据入库。
-- [ ] 首次提交；打 tag `v0.5.0`（发布前可打 `v1.0.0-rc1`）。
-- **验收**：`git status` 干净；能在任意一次提交上 `npm run build` 成功；仓库无密钥。
+### T1 版本控制与机密清理（2026-11-06 已完成本地部分）
+- [x] `git init -b main`（已在 `desktop-pet` 建仓库）
+- [x] 新建 `.gitignore`：`node_modules/`、`out/`、`release/`、`*.log`、`.tmp-*/`、`*.pvlt`、`datahub.json`、`vault-settings.json`、`*.db`、`*.db-*`、`.vscode/`、`.creative-design/`、`soft-copyright/`。
+- [x] **删除 `dev-run.log`**（含真实 key）；`PROJECT.md` 已改为无密钥示例。
+- [x] 扫描 staged 内容：无旧 API key、无私钥、无数据文件。
+- [x] 初始提交 `b5f0d1e`；打 tag `v0.5.0-baseline`。
+- [ ] **关联 GitHub 私有仓库并 push**（仓库需在 GitHub 创建后执行，见 §五 决策记录）。
+- 说明：`.creative-design/`、`soft-copyright/` 默认不入库（保留本地，按需手动 add）。
 
-### T2 版本与元数据定版
-- [ ] `package.json` 版本 → `1.0.0`（见 §5 决策 1）。
-- [ ] 同步 lock：`npm install --package-lock-only`，确认 `package-lock.json` 与 `package.json` 版本一致。
-- [ ] 确认打包后的 `userData` 仍为 `%APPDATA%\desktop-pet`（与 0.4.0 一致，升级不丢数据）；开发版仍为 `desktop-pet-dev`。
-- [ ] 确认 `appId=com.heguangchen.deskpet`、`productName=灵犀`、通知 AUMID 一致。
+### T2 版本与元数据定版（已完成定版）
+- [x] `package.json` 版本 → `1.0.0`（提交 `a665a6d`）。
+- [x] 同步 lock：`npm version 1.0.0 --no-git-tag-version`，`package-lock.json` 已为 1.0.0。
+- [ ] 确认打包后的 `userData` 仍为 `%APPDATA%\desktop-pet`（与 0.4.0 一致，升级不丢数据）；开发版仍为 `desktop-pet-dev`（T3/T4 验证）。
+- [x] 确认 `appId=com.heguangchen.deskpet`、`productName=灵犀`、通知 AUMID 一致。
 - **验收**：`node -e "console.log(require('./package.json').version)"` → `1.0.0`；打包启动日志显示 `userData=C:\Users\<用户>\AppData\Roaming\desktop-pet`。
 
 ### T3 打包
@@ -87,6 +88,7 @@
 - **验收**：以上全部通过，结果回填 §4；失败项必须修复后重测。
 
 ### T5 升级验收（0.4.0 → 1.0.0）
+> 2026-11-06 状态：本机未找到 `LingX-Setup-0.4.0.exe`。若确认不保留旧包，本项改为「全新安装验收 +（可选）构造旧 schema 数据」，并在发布说明注明"v1 不保证从 0.4.0 平滑升级"；若你能找回旧包，按原计划执行。
 - [ ] 在干净环境先安装 0.4.0（保留安装包），造一些数据：剪贴板、收藏、密码本、连接器、任务（0.4.0 无任务则跳过）。
 - [ ] 覆盖安装 1.0.0；验证：clipboard DB v4→v5 迁移、收藏与目录、任务状态预置、连接器保留、保险库路径仍可打开、自启设置不被改写。
 - [ ] 旧连接器（`124.221.58.103:8001`）已可能失效：验证"不崩、可停用/删除"；发布说明提示用户检查。
@@ -144,6 +146,16 @@
 | 6 | 要不要在 P0 补自动化测试 | 建议 P1；P0 可选把以前的临时验证桩固化为 `scripts/verify-*.mjs`（+0.5 天） |
 | 7 | 升级测试需要 0.4.0 安装包 | 请确认本机/网盘还留着；没有的话 T5 只能改为"全新安装 + 手工构造旧数据" |
 
+**决策记录（2026-11-06，依你的回复）**
+
+- 版本号：**1.0.0**（已执行，提交 `a665a6d`）。
+- P0 范围：**不含 MCP**（A 仍被 Halo MCP 接入信息阻塞；B 留 P1）。
+- 旧连接器：已从本机 `%APPDATA%\desktop-pet\datahub.json` 删除（连同 2 条旧线索，备份为 `datahub.json.bak-20261106`）；`PROJECT.md` 中旧 `124.221.58.103:8001` 示例已移除。
+- 旧安装包：已搜索 `LingX-Setup-*.exe`（项目目录/下载/桌面/各盘根目录浅层）**未找到**；请告知是否在其他机器/网盘，否则 T5 调整（见该节说明）。
+- 代码签名：**v1 暂不签名**，发布说明给 SmartScreen 操作指引；面向企业客户或规模化分发时再评估 OV/EV 证书。
+- GitHub：当前网络**可直连**（HTTPS 200、SSH 认证成功，账号 `Snutree`，无需 VPN）；本地仓库已建并提交；待你在 GitHub 创建**私有**仓库后 push（步骤见回复）。
+- 额外资料：`.creative-design/`、`soft-copyright/` 默认不入库，保留本地；需要备份到 GitHub 时再单独添加。
+
 **已知风险点（都已列入 T4/T5 验收）**：打包后通知 AUMID 是否正常、打包后 userData 名称是否与 0.4.0 一致、better-sqlite3 原生模块加载、旧连接器失效、旧 vault 绝对路径。
 
 ---
@@ -173,8 +185,8 @@ T1（0.5 人日）→ T2（0.25）→ T3（0.5）→ T4+T5（0.5~1）→ T6+T7�
 | 类型检查 | `npm run typecheck` | 通过 |
 | 构建 | `npm run build` | 通过（out 2026-11-06 21:02） |
 | 打包缓存 | `%LOCALAPPDATA%\electron-builder\Cache` | nsis、winCodeSign 已缓存 |
-| 发布产物 | `release/` | **不存在**（0.5.0 未打包） |
-| 版本控制 | `git rev-parse --is-inside-work-tree` | **不是仓库** |
-| 密钥扫描 | `dev-run.log` | **含真实旧接口 key（需删除）** |
-| lock 版本 | `package-lock.json` | 0.2.0（与 package 0.5.0 不一致） |
-| 安装版数据 | `%APPDATA%\desktop-pet` | 旧连接器启用中；vault-settings 指向 F:\... |
+| 发布产物 | `release/` | **不存在**（1.0.0 待打包） |
+| 版本控制 | `git rev-parse --is-inside-work-tree` | 已建仓库：`b5f0d1e` 基线 + `a665a6d` 版本 1.0.0 |
+| 密钥扫描 | `dev-run.log` | 已于 2026-11-06 删除；staged 扫描无 key |
+| lock 版本 | `package-lock.json` | 1.0.0（已同步） |
+| 安装版数据 | `%APPDATA%\desktop-pet` | 旧连接器与旧消息已清理（备份 `datahub.json.bak-20261106`）；vault-settings 仍指 F:\...（仅本机可接受） |

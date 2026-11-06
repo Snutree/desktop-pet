@@ -69,11 +69,13 @@
 - [x] 确认 `appId=com.heguangchen.deskpet`、`productName=灵犀`、通知 AUMID 一致。
 - **验收**：`node -e "console.log(require('./package.json').version)"` → `1.0.0`；打包启动日志显示 `userData=C:\Users\<用户>\AppData\Roaming\desktop-pet`。
 
-### T3 打包
-- [ ] `npm run build:win`，产出 `release/LingX-Setup-1.0.0.exe`。
-- [ ] 检查产物：asar 内含 `resources/` 图标与 `out/`；better-sqlite3 `.node` 在 `app.asar.unpacked`；exe 图标与版本信息正确。
-- [ ] 计算并记录安装包 SHA256（发布用）。
-- **验收**：安装包能安装、能启动；主进程日志无"模块缺失/加载失败"。
+### T3 打包（2026-11-06 已完成）
+- [x] `npm run build:win` 成功，产出：
+  - `release/LingX-Setup-1.0.0.exe`（85.7 MB）
+  - `release/win-unpacked/灵犀.exe`（版本 1.0.0）
+- [x] 检查产物：asar 内 `out/`（19 项）+ `resources/` 图标 3 个；无 `src/`、`docs/`、`soft-copyright/`；better-sqlite3 原生模块在 `app.asar.unpacked`（1.7MB）；exe/安装包版本 1.0.0、公司名正确。
+- [x] SHA256：`15CE2C89F848B368F6C0C7FF7F9A3C6CFD484AB274EC11B12507171FB306697F`（已写入 `docs/release-notes-1.0.0.md`）。
+- [ ] 安装/启动冒烟：**待 T4**（不在开发机直接运行打包版，避免改写本机自启注册表）。
 
 ### T4 干净环境安装验收（最重要）
 > 条件：新建一个 Windows 用户（或干净虚拟机），**不要用你的开发机现有环境**。
@@ -105,7 +107,8 @@
 - [ ] 修 `PROJECT.md` 过时内容：保险库路径（已去掉开发机绝对路径）、消息来源（Halo 表单；旧线索接口仅历史）、通知已实现、版本 0.5.0→1.0.0、状态"待打包"→"已发布"。
 - [x] 新增 `README.md`（v1.0.0 基础版：功能、开发、数据位置、已知限制）。
 - [x] 新增 `LICENSE`（All rights reserved 版权声明），`package.json` license 改为 `UNLICENSED`。
-- [ ] 新增 `CHANGELOG.md`：1.0.0 汇总（任务追踪 + v1 闭环 11 项）。
+- [x] 新增 `CHANGELOG.md`：1.0.0 汇总（任务追踪 + v1 闭环 11 项）。
+- [x] 新增 `docs/release-notes-1.0.0.md`：安装包、SHA256、升级说明、备份步骤、已知问题。
 - [ ] `docs/mcp-a-data-source.md`、`docs/mcp-b-task-server.md` 标注"设计稿 / 未实现 / A 阻塞点"。
 - **验收**：文档与 1.0.0 实际行为一致；无绝对开发机路径、无真实密钥。
 
@@ -188,7 +191,7 @@ T1（0.5 人日）→ T2（0.25）→ T3（0.5）→ T4+T5（0.5~1）→ T6+T7�
 | 类型检查 | `npm run typecheck` | 通过 |
 | 构建 | `npm run build` | 通过（out 2026-11-06 21:02） |
 | 打包缓存 | `%LOCALAPPDATA%\electron-builder\Cache` | nsis、winCodeSign 已缓存 |
-| 发布产物 | `release/` | **不存在**（1.0.0 待打包） |
+| 发布产物 | `release/LingX-Setup-1.0.0.exe` | 已生成（85.7 MB，SHA256 `15CE2C89…`） |
 | 版本控制 | `git rev-parse --is-inside-work-tree` | 已建仓库：`b5f0d1e` 基线 + `a665a6d` 版本 1.0.0 |
 | 密钥扫描 | `dev-run.log` | 已于 2026-11-06 删除；staged 扫描无 key |
 | lock 版本 | `package-lock.json` | 1.0.0（已同步） |

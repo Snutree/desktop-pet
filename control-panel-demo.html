@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>桌面宠物 · 控制板 Demo</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
+    background: #F2F3F7; color: #1A1B1C;
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .app {
+    width: 1180px; max-width: 100%; height: 720px; max-height: 92vh;
+    background: #fff; border-radius: 16px; overflow: hidden;
+    display: flex; box-shadow: 0 8px 40px rgba(0,0,0,0.12);
+  }
+
+  /* ===== 侧栏 ===== */
+  .sidebar {
+    width: 216px; flex: 0 0 216px; background: #20242F; color: #9AA3B5;
+    display: flex; flex-direction: column; padding: 16px 12px; user-select: none;
+  }
+  .pet-badge {
+    display: flex; align-items: center; gap: 10px; padding: 6px 8px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 12px;
+  }
+  .pet-avatar {
+    width: 40px; height: 40px; border-radius: 12px; background: #FF9A3C;
+    display: flex; align-items: center; justify-content: center; font-size: 22px;
+  }
+  .pet-name { color: #fff; font-size: 14px; font-weight: 600; line-height: 1.3; }
+  .pet-name small { display: block; color: #7A8398; font-size: 11px; font-weight: 400; }
+  .nav-label { font-size: 11px; color: #5C6577; padding: 10px 8px 6px; letter-spacing: 1px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    border-radius: 10px; cursor: pointer; font-size: 13.5px; color: #9AA3B5;
+    transition: background .15s, color .15s; margin-bottom: 2px; position: relative;
+  }
+  .nav-item:hover { background: rgba(255,255,255,0.06); color: #DDE2EC; }
+  .nav-item.active { background: rgba(255,154,60,0.16); color: #FFB36B; font-weight: 600; }
+  .nav-item .icon { font-size: 17px; width: 22px; text-align: center; }
+  .nav-item .badge {
+    margin-left: auto; background: #EA6668; color: #fff; font-size: 10.5px;
+    border-radius: 9px; padding: 1px 7px; font-weight: 600;
+  }
+  .sidebar-foot { margin-top: auto; padding: 10px 8px 2px; font-size: 11.5px; color: #5C6577;
+    border-top: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #52C41A; display: inline-block; margin-right: 5px; }
+
+  /* ===== 内容区 ===== */
+  .content { flex: 1; min-width: 0; display: flex; flex-direction: column; background: #F7F8FA; }
+  .topbar {
+    height: 56px; flex: 0 0 56px; background: #fff; border-bottom: 1px solid #ECEDF1;
+    display: flex; align-items: center; gap: 14px; padding: 0 22px;
+  }
+  .topbar h1 { font-size: 16px; font-weight: 600; }
+  .topbar .search {
+    flex: 1; max-width: 380px; margin-left: auto;
+    background: #F2F3F7; border: 1px solid transparent; border-radius: 9px;
+    padding: 7px 12px; font-size: 13px; color: #1A1B1C; outline: none;
+  }
+  .topbar .search:focus { border-color: #FF9A3C; background: #fff; }
+  .topbar .status { font-size: 12px; color: #6B7280; display: flex; align-items: center; gap: 6px; }
+
+  .view { display: none; flex: 1; overflow-y: auto; padding: 18px 22px; }
+  .view.active { display: block; }
+
+  /* ===== 剪贴板视图 ===== */
+  .view-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  .view-head .tabs {
+    display: flex; background: #ECEDF1; border-radius: 9px; padding: 3px; gap: 2px;
+  }
+  .view-head .tab { padding: 5px 16px; border-radius: 7px; font-size: 12.5px; cursor: pointer; color: #6B7280; }
+  .view-head .tab.active { background: #fff; color: #1A1B1C; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .view-head .spacer { flex: 1; }
+  .btn {
+    border: none; border-radius: 8px; padding: 7px 14px; font-size: 12.5px; cursor: pointer;
+    background: #FF9A3C; color: #fff; font-weight: 600;
+  }
+  .btn.ghost { background: #fff; color: #4B5563; border: 1px solid #D9DBE3; }
+  .btn.sm { padding: 4px 10px; font-size: 12px; font-weight: 400; }
+
+  .day-group { margin-bottom: 16px; }
+  .day-title { font-size: 12px; color: #6B7280; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .day-title::after { content: ''; flex: 1; height: 1px; background: #ECEDF1; }
+  .item {
+    display: flex; align-items: center; gap: 12px; background: #fff;
+    border: 1px solid #ECEDF1; border-radius: 11px; padding: 11px 14px; margin-bottom: 7px;
+    transition: box-shadow .15s;
+  }
+  .item:hover { box-shadow: 0 2px 10px rgba(0,0,0,0.06); }
+  .item .thumb { width: 46px; height: 34px; border-radius: 7px; background: linear-gradient(135deg,#FFD9B3,#FF9A3C); flex: 0 0 46px; }
+  .item .thumb.txt { background: linear-gradient(135deg,#DCE6F7,#9BBBF4); display: flex; align-items: center; justify-content: center; color: #3B5B9E; font-size: 16px; }
+  .item .body { flex: 1; min-width: 0; }
+  .item .body .title { font-size: 13px; color: #1A1B1C; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item .body .meta { font-size: 11px; color: #9AA3B5; margin-top: 2px; }
+  .item .ops { display: flex; gap: 4px; opacity: 0; transition: opacity .15s; }
+  .item:hover .ops { opacity: 1; }
+  .op { padding: 4px 8px; font-size: 11.5px; border-radius: 6px; background: #F2F3F7; color: #4B5563; cursor: pointer; }
+  .op.fav { color: #FF9A3C; }
+  .op.del { color: #EA6668; }
+
+  /* ===== 密码本视图 ===== */
+  .vault-grid { display: grid; grid-template-columns: 190px 1fr; gap: 14px; height: calc(100% - 40px); }
+  .cat-list { background: #fff; border: 1px solid #ECEDF1; border-radius: 12px; padding: 10px; }
+  .cat { padding: 9px 12px; border-radius: 8px; font-size: 13px; cursor: pointer; color: #4B5563; display: flex; justify-content: space-between; }
+  .cat.active { background: rgba(255,154,60,0.12); color: #C2601A; font-weight: 600; }
+  .cat .n { font-size: 11px; color: #9AA3B5; }
+  .vault-list { background: #fff; border: 1px solid #ECEDF1; border-radius: 12px; overflow-y: auto; }
+  .vault-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #F2F3F7; cursor: pointer; }
+  .vault-item:hover { background: #FAFBFC; }
+  .vault-item .ico { width: 34px; height: 34px; border-radius: 9px; background: #F2F3F7; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+  .vault-item .nm { font-size: 13px; font-weight: 500; }
+  .vault-item .un { font-size: 11.5px; color: #9AA3B5; }
+  .vault-item .time { margin-left: auto; font-size: 11px; color: #B0B6C2; }
+
+  /* ===== 消息中心 ===== */
+  .msg { display: flex; gap: 12px; background: #fff; border: 1px solid #ECEDF1; border-radius: 11px; padding: 12px 14px; margin-bottom: 8px; }
+  .msg .tag { flex: 0 0 auto; width: 8px; border-radius: 4px; }
+  .msg.lead .tag { background: #EA6668; }
+  .msg.sys .tag { background: #9AA3B5; }
+  .msg .b { flex: 1; min-width: 0; }
+  .msg .t { font-size: 13px; font-weight: 600; display: flex; gap: 8px; align-items: center; }
+  .msg .t .pill { font-size: 10.5px; background: rgba(234,102,104,0.12); color: #C0392B; border-radius: 5px; padding: 1px 6px; font-weight: 600; }
+  .msg .d { font-size: 12.5px; color: #4B5563; margin-top: 3px; }
+  .msg .m { font-size: 11px; color: #9AA3B5; margin-top: 3px; display: flex; gap: 10px; }
+  .msg .ops { display: flex; gap: 5px; align-items: flex-start; }
+
+  /* ===== API 配置 ===== */
+  .conn {
+    background: #fff; border: 1px solid #ECEDF1; border-radius: 12px; padding: 14px 16px; margin-bottom: 10px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .conn .s { width: 40px; height: 40px; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: 19px; }
+  .conn .s.on { background: rgba(82,196,26,0.12); }
+  .conn .s.off { background: #F2F3F7; }
+  .conn .i { flex: 1; min-width: 0; }
+  .conn .i .t { font-size: 13.5px; font-weight: 600; }
+  .conn .i .d { font-size: 11.5px; color: #6B7280; margin-top: 2px; font-family: Consolas, monospace; }
+  .conn .sw { width: 38px; height: 21px; border-radius: 11px; background: #D9DBE3; position: relative; cursor: pointer; transition: background .15s; }
+  .conn .sw::after { content: ''; position: absolute; top: 2px; left: 2px; width: 17px; height: 17px; border-radius: 50%; background: #fff; transition: left .15s; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+  .conn .sw.on { background: #52C41A; }
+  .conn .sw.on::after { left: 19px; }
+
+  .add-card {
+    border: 1.5px dashed #D9DBE3; border-radius: 12px; padding: 14px 16px; margin-top: 14px;
+    color: #6B7280; font-size: 12.5px;
+  }
+  .add-card .row { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+  .add-card input {
+    flex: 1; min-width: 180px; border: 1px solid #D9DBE3; border-radius: 8px; padding: 8px 12px; font-size: 12.5px; outline: none;
+  }
+  .add-card input:focus { border-color: #FF9A3C; }
+
+  /* ===== 设置 ===== */
+  .set-group { background: #fff; border: 1px solid #ECEDF1; border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
+  .set-row { display: flex; align-items: center; gap: 14px; padding: 13px 16px; border-bottom: 1px solid #F2F3F7; }
+  .set-row:last-child { border-bottom: none; }
+  .set-row .t { font-size: 13px; }
+  .set-row .d { font-size: 11.5px; color: #9AA3B5; margin-top: 2px; }
+  .set-row .ctrl { margin-left: auto; }
+  .sw2 { width: 38px; height: 21px; border-radius: 11px; background: #52C41A; position: relative; cursor: pointer; }
+  .sw2::after { content: ''; position: absolute; top: 2px; left: 19px; width: 17px; height: 17px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===== 侧栏 ===== -->
+  <aside class="sidebar">
+    <div class="pet-badge">
+      <div class="pet-avatar">🦊</div>
+      <div class="pet-name">桌面宠物<small>v0.3 控制板</small></div>
+    </div>
+    <div class="nav-label">工作台</div>
+    <div class="nav-item active" data-view="clipboard"><span class="icon">📋</span>剪贴板</div>
+    <div class="nav-item" data-view="vault"><span class="icon">🔐</span>密码本</div>
+    <div class="nav-item" data-view="messages"><span class="icon">💬</span>消息中心<span class="badge">2</span></div>
+    <div class="nav-label">系统</div>
+    <div class="nav-item" data-view="api"><span class="icon">🔌</span>API 配置</div>
+    <div class="nav-item" data-view="settings"><span class="icon">⚙️</span>设置</div>
+    <div class="sidebar-foot">
+      <span><span class="dot"></span>服务运行中</span>
+      <span>22:41</span>
+    </div>
+  </aside>
+
+  <!-- ===== 内容区 ===== -->
+  <main class="content">
+    <div class="topbar">
+      <h1 id="page-title">剪贴板</h1>
+      <input class="search" id="global-search" placeholder="搜索剪贴板、密码、消息…" />
+      <div class="status"><span class="dot"></span>Webhook 已连接</div>
+    </div>
+
+    <!-- 剪贴板 -->
+    <div class="view active" id="view-clipboard">
+      <div class="view-head">
+        <div class="tabs">
+          <div class="tab active">全部</div><div class="tab">图片</div><div class="tab">文本</div><div class="tab">收藏</div>
+        </div>
+        <div class="spacer"></div>
+        <button class="btn ghost sm">导出今日</button>
+        <button class="btn sm">+ 新建片段</button>
+      </div>
+      <div class="day-group">
+        <div class="day-title">今天 · 25 条</div>
+        <div class="item">
+          <div class="thumb"></div>
+          <div class="body"><div class="title">屏幕截图 1912×948</div><div class="meta">图片 · 20:51:14</div></div>
+          <div class="ops"><span class="op">复制</span><span class="op fav">收藏</span><span class="op del">删除</span></div>
+        </div>
+        <div class="item">
+          <div class="thumb txt">#</div>
+          <div class="body"><div class="title">https://your-site.com/api/leads?key=8ee2e3be5ddb</div><div class="meta">文本 · 20:43:54</div></div>
+          <div class="ops"><span class="op">复制</span><span class="op fav">收藏</span><span class="op del">删除</span></div>
+        </div>
+        <div class="item">
+          <div class="thumb txt">#</div>
+          <div class="body"><div class="title">124.221.58.103 服务器部署备忘</div><div class="meta">文本 · 19:25:39</div></div>
+          <div class="ops"><span class="op">复制</span><span class="op fav">收藏</span><span class="op del">删除</span></div>
+        </div>
+        <div class="item">
+          <div class="thumb txt">#</div>
+          <div class="body"><div class="title">手机号 138xxxx5678 → 建议保存为线索</div><div class="meta">文本 · 智能识别 · 18:30:47</div></div>
+          <div class="ops"><span class="op">复制</span><span class="op fav">收藏</span><span class="op del">删除</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 密码本 -->
+    <div class="view" id="view-vault">
+      <div class="view-head">
+        <div class="tabs"><div class="tab active">全部条目</div><div class="tab">已锁定 · 立即上锁</div></div>
+        <div class="spacer"></div>
+        <button class="btn sm">+ 新增</button>
+      </div>
+      <div class="vault-grid">
+        <div class="cat-list">
+          <div class="cat active">全部 <span class="n">12</span></div>
+          <div class="cat">工作 <span class="n">5</span></div>
+          <div class="cat">网站 <span class="n">4</span></div>
+          <div class="cat">客户 <span class="n">3</span></div>
+        </div>
+        <div class="vault-list">
+          <div class="vault-item"><div class="ico">🏢</div><div><div class="nm">官网后台管理员</div><div class="un">admin@yoursite.com</div></div><div class="time">2 天前</div></div>
+          <div class="vault-item"><div class="ico">☁️</div><div><div class="nm">服务器 SSH root</div><div class="un">124.221.58.103</div></div><div class="time">5 天前</div></div>
+          <div class="vault-item"><div class="ico">💳</div><div><div class="nm">企业支付宝</div><div class="un">zhang@company.cn</div></div><div class="time">1 周前</div></div>
+          <div class="vault-item"><div class="ico">🌐</div><div><div class="nm">微信商户平台</div><div class="un">mch-1000xxxx</div></div><div class="time">2 周前</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 消息中心 -->
+    <div class="view" id="view-messages">
+      <div class="view-head">
+        <div class="tabs"><div class="tab active">全部</div><div class="tab">线索</div><div class="tab">系统</div></div>
+        <div class="spacer"></div>
+        <button class="btn ghost sm">全部已读</button>
+      </div>
+      <div class="msg lead">
+        <div class="tag"></div>
+        <div class="b">
+          <div class="t">官网表单 · 新线索 <span class="pill">高意向</span></div>
+          <div class="d">张三 · 138xxxx5678 · 「想了解 AI 客服，预算 1 万左右」</div>
+          <div class="m">来源: 官网 /api/leads · 22:41:07 · 未读</div>
+        </div>
+        <div class="ops"><button class="btn sm">查看详情</button></div>
+      </div>
+      <div class="msg lead">
+        <div class="tag"></div>
+        <div class="b">
+          <div class="t">官网表单 · 新线索</div>
+          <div class="d">李四 · 186xxxx1234 · 「餐饮店想做会员系统」</div>
+          <div class="m">来源: 官网 /api/leads · 21:15:33 · 未读</div>
+        </div>
+        <div class="ops"><button class="btn sm">查看详情</button></div>
+      </div>
+      <div class="msg sys">
+        <div class="tag"></div>
+        <div class="b">
+          <div class="t">系统 · Webhook 连接成功</div>
+          <div class="d">官网 leads API 推送通道已就绪</div>
+          <div class="m">20:02:00 · 已读</div>
+        </div>
+        <div class="ops"><button class="btn ghost sm">配置</button></div>
+      </div>
+      <div class="msg sys">
+        <div class="tag"></div>
+        <div class="b">
+          <div class="t">系统 · 自动备份完成</div>
+          <div class="d">剪贴板 128 条 / 密码本已加密备份</div>
+          <div class="m">19:00:00 · 已读</div>
+        </div>
+        <div class="ops"></div>
+      </div>
+    </div>
+
+    <!-- API 配置 -->
+    <div class="view" id="view-api">
+      <div class="view-head">
+        <h2 style="font-size:15px;">数据源连接器 <span style="color:#9AA3B5;font-weight:400;font-size:12px;">· 配置后消息自动进入控制板与宠物气泡</span></h2>
+        <div class="spacer"></div>
+        <button class="btn sm">+ 添加数据源</button>
+      </div>
+      <div class="conn">
+        <div class="s on">🌐</div>
+        <div class="i">
+          <div class="t">公司官网 · 线索表单</div>
+          <div class="d">POST https://your-site.com/api/leads → 本地 Webhook 端口 8457 · token ****</div>
+        </div>
+        <div class="sw on" onclick="this.classList.toggle('on')"></div>
+      </div>
+      <div class="conn">
+        <div class="s on">⏱️</div>
+        <div class="i">
+          <div class="t">第三方工单系统（轮询）</div>
+          <div class="d">GET https://helpdesk.example.com/api/tickets · 每 60s · Bearer ****</div>
+        </div>
+        <div class="sw on" onclick="this.classList.toggle('on')"></div>
+      </div>
+      <div class="conn">
+        <div class="s off">✉️</div>
+        <div class="i">
+          <div class="t">企业微信 · 客户消息</div>
+          <div class="d">Webhook 地址未配置</div>
+        </div>
+        <div class="sw" onclick="this.classList.toggle('on')"></div>
+      </div>
+      <div class="add-card">
+        新增数据源
+        <div class="row">
+          <input placeholder="名称，如：官网表单" />
+          <input placeholder="接口 URL 或 Webhook 地址" />
+          <input placeholder="鉴权 Token（可选）" />
+        </div>
+        <div class="row">
+          <select style="border:1px solid #D9DBE3;border-radius:8px;padding:8px 12px;font-size:12.5px;color:#4B5563;outline:none;">
+            <option>接收方式：Webhook（推送）</option>
+            <option>接收方式：定时轮询（60s）</option>
+          </select>
+          <button class="btn sm" style="margin-left:auto;">保存配置</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 设置 -->
+    <div class="view" id="view-settings">
+      <div class="view-head"><h2 style="font-size:15px;">设置</h2><div class="spacer"></div></div>
+      <div class="set-group">
+        <div class="set-row"><div><div class="t">开机自启动</div><div class="d">登录 Windows 后自动运行桌宠</div></div><div class="ctrl"><div class="sw2"></div></div></div>
+        <div class="set-row"><div><div class="t">消息通知</div><div class="d">新线索弹气泡 + 宠物动画提醒</div></div><div class="ctrl"><div class="sw2"></div></div></div>
+        <div class="set-row"><div><div class="t">剪贴板自动清理</div><div class="d">保留 7 天，每小时检查一次</div></div><div class="ctrl"><div class="sw2"></div></div></div>
+      </div>
+      <div class="set-group">
+        <div class="set-row"><div><div class="t">密码本自动锁定</div><div class="d">闲置 5 分钟后锁定</div></div><div class="ctrl"><button class="btn ghost sm">修改</button></div></div>
+        <div class="set-row"><div><div class="t">快捷键</div><div class="d">剪贴板 Ctrl+Shift+V · 截图 Ctrl+Shift+S</div></div><div class="ctrl"><button class="btn ghost sm">修改</button></div></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+(function () {
+  var titles = { clipboard: '剪贴板', vault: '密码本', messages: '消息中心', api: 'API 配置', settings: '设置' };
+  var navs = document.querySelectorAll('.nav-item[data-view]');
+  var views = document.querySelectorAll('.view');
+  navs.forEach(function (n) {
+    n.addEventListener('click', function () {
+      navs.forEach(function (x) { x.classList.remove('active'); });
+      n.classList.add('active');
+      views.forEach(function (v) { v.classList.remove('active'); });
+      var target = document.getElementById('view-' + n.getAttribute('data-view'));
+      if (target) target.classList.add('active');
+      document.getElementById('page-title').textContent = titles[n.getAttribute('data-view')];
+    });
+  });
+  // 顶部分类 tab 切换（仅视觉）
+  document.querySelectorAll('.view-head .tab').forEach(function (t) {
+    t.addEventListener('click', function () {
+      var parent = t.parentElement;
+      parent.querySelectorAll('.tab').forEach(function (x) { x.classList.remove('active'); });
+      t.classList.add('active');
+    });
+  });
+})();
+</script>
+</body>
+</html>

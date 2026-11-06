@@ -1,0 +1,31 @@
+# 依赖
+node_modules/
+
+# 构建产物（由 npm run build / build:win 生成）
+out/
+release/
+
+# 日志与临时文件
+*.log
+logs/
+.tmp-*/
+*.tmp
+
+# 本地数据 / 密钥（绝不入库）
+*.pvlt
+datahub.json
+vault-settings.json
+*.db
+*.db-shm
+*.db-wal
+*.bak-*
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 非代码资料（保留在工作目录，按需手动加入仓库）
+.creative-design/
+soft-copyright/

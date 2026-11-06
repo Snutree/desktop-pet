@@ -1,0 +1,67 @@
+{
+  "name": "desktop-pet",
+  "version": "0.5.0",
+  "description": "灵犀：剪贴板收藏整理 + 密码本 + 消息中枢（常驻秒开）",
+  "main": "out/main/index.js",
+  "author": "河北省合光尘软件有限公司",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
+    "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json --composite false",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "build:win": "electron-vite build && electron-builder --win"
+  },
+  "build": {
+    "appId": "com.heguangchen.deskpet",
+    "productName": "灵犀",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "resources/**/*"
+    ],
+    "asarUnpack": [
+      "**/*.node"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "resources/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "灵犀",
+      "artifactName": "LingX-Setup-${version}.${ext}"
+    }
+  },
+  "dependencies": {
+    "better-sqlite3": "11.7.0",
+    "hash-wasm": "^4.12.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "7.6.12",
+    "@types/node": "22.10.1",
+    "@vitejs/plugin-vue": "5.2.1",
+    "electron": "33.4.11",
+    "electron-builder": "25.1.8",
+    "electron-vite": "2.3.0",
+    "typescript": "5.6.3",
+    "vite": "5.4.11",
+    "vue": "3.5.13",
+    "vue-tsc": "2.1.10"
+  }
+}

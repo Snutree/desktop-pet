@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self' 'unsafe-inline'"
+    />
+    <title>ClipboardPlus 截图</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        cursor: crosshair;
+      }
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: transparent;
+        user-select: none;
+      }
+      #stage {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      /* 顶部确认条：选中区域后出现 */
+      #bar {
+        position: fixed;
+        top: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: rgba(20, 22, 24, 0.92);
+        border-radius: 10px;
+        padding: 8px 14px;
+        font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        color: #ffffff;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      }
+      #bar.hidden {
+        display: none;
+      }
+      #size {
+        font-size: 13px;
+        color: #d1d5db;
+        font-variant-numeric: tabular-nums;
+        min-width: 86px;
+        text-align: center;
+      }
+      #bar button {
+        border: none;
+        border-radius: 6px;
+        padding: 6px 16px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      #ok {
+        background: #52c41a;
+        color: #ffffff;
+      }
+      #ok:hover {
+        background: #46a815;
+      }
+      #cancel-btn {
+        background: rgba(255, 255, 255, 0.14);
+        color: #ffffff;
+      }
+      #cancel-btn:hover {
+        background: rgba(255, 255, 255, 0.26);
+      }
+      /* 顶部提示：进入截图模式的引导文案 */
+      #tip {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        font-size: 13px;
+        color: #ffffff;
+        background: rgba(20, 22, 24, 0.82);
+        border-radius: 999px;
+        padding: 7px 18px;
+        pointer-events: none;
+      }
+      #tip.hidden {
+        display: none;
+      }
+      /* 选区尺寸浮标：跟随选区右下角 */
+      #floating-size {
+        position: fixed;
+        font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        font-size: 12px;
+        color: #ffffff;
+        background: rgba(77, 163, 255, 0.92);
+        border-radius: 5px;
+        padding: 2px 8px;
+        pointer-events: none;
+        display: none;
+        font-variant-numeric: tabular-nums;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage"></canvas>
+    <div id="tip">按住左键拖拽选择截图区域 · Enter 确认 · Esc 取消</div>
+    <div id="bar" class="hidden">
+      <span id="size">0 × 0</span>
+      <button id="ok">✓ 确认</button>
+      <button id="cancel-btn">✕ 取消</button>
+    </div>
+    <div id="floating-size"></div>
+
+    <script type="module">
+      /**
+       * 截图框选页（阶段 5，原生 JS 轻量实现）
+       *  - canvas 以物理像素渲染全屏截图 + 半透明遮罩 + 选区原图重绘
+       *  - 鼠标拖拽框选；Enter / 确认按钮提交；Esc / 取消按钮 / 右键 取消
+       *  - 选区以物理像素回传主进程（主进程直接 crop）
+       */
+      const canvas = document.getElementById('stage')
+      const ctx = canvas.getContext('2d')
+      const bar = document.getElementById('bar')
+      const sizeLabel = document.getElementById('size')
+      const floating = document.getElementById('floating-size')
+      const tip = document.getElementById('tip')
+
+      const MIN_SELECT_PX = 6 // 物理像素最小选区，过小视为误触
+
+      let scaleFactor = 1
+      let fullImage = null
+      let startPoint = null // 拖拽起点（物理像素）
+      let selection = null // 当前有效选区（物理像素）
+      let dragging = false
+
+      /** 主进程推送初始化数据（全屏截图 + 显示尺寸 + DPI） */
+      window.screenshotApi.onInit((payload) => {
+        scaleFactor = payload.scaleFactor
+        canvas.width = Math.round(payload.displayWidth * scaleFactor)
+        canvas.height = Math.round(payload.displayHeight * scaleFactor)
+        fullImage = new Image()
+        fullImage.onload = () => {
+          draw()
+          tip.classList.remove('hidden')
+        }
+        fullImage.src = payload.imageDataUrl
+      })
+
+      /** 全量重绘：背景图 → 遮罩 → 选区原图 → 边框 */
+      function draw() {
+        if (!fullImage) return
+        ctx.drawImage(fullImage, 0, 0, canvas.width, canvas.height)
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+        if (!selection) return
+        const { x, y, w, h } = selection
+        ctx.drawImage(fullImage, x, y, w, h, x, y, w, h) // 选区重绘原图
+        ctx.strokeStyle = 'rgba(77, 163, 255, 0.95)'
+        ctx.lineWidth = 2
+        ctx.strokeRect(x + 1, y + 1, w - 2, h - 2)
+      }
+
+      /** clientX/Y（CSS 像素）→ 物理像素 */
+      function toPhys(e) {
+        return { x: Math.round(e.clientX * scaleFactor), y: Math.round(e.clientY * scaleFactor) }
+      }
+
+      /** 归一化选区（支持反向拖拽） */
+      function normalize(a, b) {
+        return {
+          x: Math.min(a.x, b.x),
+          y: Math.min(a.y, b.y),
+          w: Math.abs(b.x - a.x),
+          h: Math.abs(b.y - a.y)
+        }
+      }
+
+      /** 逻辑像素尺寸文本（给用户看的宽×高） */
+      function sizeText() {
+        if (!selection) return '0 × 0'
+        return `${Math.round(selection.w / scaleFactor)} × ${Math.round(selection.h / scaleFactor)}`
+      }
+
+      function updateFloating() {
+        if (!selection) {
+          floating.style.display = 'none'
+          return
+        }
+        const left = selection.x / scaleFactor + selection.w / scaleFactor
+        const top = selection.y / scaleFactor + selection.h / scaleFactor
+        floating.textContent = sizeText()
+        floating.style.left = left + 8 + 'px'
+        floating.style.top = top + 8 + 'px'
+        floating.style.display = 'block'
+      }
+
+      function showBar() {
+        sizeLabel.textContent = sizeText()
+        bar.classList.remove('hidden')
+        tip.classList.add('hidden')
+        updateFloating()
+      }
+
+      function hideBar() {
+        bar.classList.add('hidden')
+        floating.style.display = 'none'
+        tip.classList.remove('hidden')
+      }
+
+      /** 提交：物理像素区域回传主进程 */
+      function confirmSelection() {
+        if (!selection) return
+        window.screenshotApi.confirm({
+          x: selection.x,
+          y: selection.y,
+          width: selection.w,
+          height: selection.h
+        })
+      }
+
+      function cancel() {
+        window.screenshotApi.cancel()
+      }
+
+      // ── 鼠标交互 ─────────────────────────────────────
+      canvas.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return
+        startPoint = toPhys(e)
+        selection = null
+        dragging = true
+        hideBar()
+      })
+
+      canvas.addEventListener('mousemove', (e) => {
+        if (!dragging || !startPoint) return
+        selection = normalize(startPoint, toPhys(e))
+        draw()
+        updateFloating()
+      })
+
+      window.addEventListener('mouseup', (e) => {
+        if (!dragging) return
+        dragging = false
+        startPoint = null
+        // 选区过小 → 忽略，等待下一次拖拽
+        if (!selection || selection.w < MIN_SELECT_PX || selection.h < MIN_SELECT_PX) {
+          selection = null
+          draw()
+          hideBar()
+          return
+        }
+        showBar()
+      })
+
+      // ── 键盘与按钮 ───────────────────────────────────
+      document.getElementById('ok').addEventListener('click', confirmSelection)
+      document.getElementById('cancel-btn').addEventListener('click', cancel)
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && selection) confirmSelection()
+        else if (e.key === 'Escape') cancel()
+      })
+      // 右键取消（与常见截图工具一致）
+      canvas.addEventListener('contextmenu', (e) => {
+        e.preventDefault()
+        cancel()
+      })
+    </script>
+  </body>
+</html>

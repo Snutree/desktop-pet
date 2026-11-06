@@ -50,7 +50,8 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "灵犀",
-      "artifactName": "LingX-Setup-${version}.${ext}"
+      "artifactName": "LingX-Setup-${version}.${ext}",
+      "include": "build/installer.nsh"
     }
   },
   "dependencies": {

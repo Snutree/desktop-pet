@@ -74,11 +74,12 @@
   - `release/LingX-Setup-1.0.0.exe`（85.7 MB）
   - `release/win-unpacked/灵犀.exe`（版本 1.0.0）
 - [x] 检查产物：asar 内 `out/`（19 项）+ `resources/` 图标 3 个；无 `src/`、`docs/`、`soft-copyright/`；better-sqlite3 原生模块在 `app.asar.unpacked`（1.7MB）；exe/安装包版本 1.0.0、公司名正确。
-- [x] SHA256：`15CE2C89F848B368F6C0C7FF7F9A3C6CFD484AB274EC11B12507171FB306697F`（已写入 `docs/release-notes-1.0.0.md`）。
+- [x] SHA256：`64366F41DC95E39EF4F98E9D760843CF9F61F9D63B0CF6C890BB48C6DBB10F43`（已写入 `docs/release-notes-1.0.0.md`；安装包因修复"卸载残留空目录"重新打包过一次）。
 - [ ] 安装/启动冒烟：**待 T4**（不在开发机直接运行打包版，避免改写本机自启注册表）。
 
 ### T4 干净环境安装验收（最重要）
-> 条件：新建一个 Windows 用户（或干净虚拟机），**不要用你的开发机现有环境**。
+> 条件：新建一个 Windows 用户（或干净虚拟机/沙盒），**不要用你的开发机现有环境**。
+> 2026-11-06 沙盒自动化已跑通子集：静默安装、首启启动（窗口打开、引导横幅可见、标题"灵犀 · 控制板"）、日志（`packaged=true`、Webhook 监听、无 uncaughtException）、userData 落在 `%APPDATA%\desktop-pet`、剪贴板文本捕获（数据库校验通过）、开机自启默认关闭、卸载后用户数据保留、卸载空目录清理。**UI 功能点（密码本解锁流程、收藏、任务、通知点击、截图工具等）仍需人工点验。**
 - [ ] 安装 1.0.0；首启：控制板自动打开、引导横幅出现、托盘图标可见、两个热键可用、开机自启默认关闭。
 - [ ] 剪贴板：文本 / 多行 / 图片（缩略图+大图）/ 框选截图 / 收藏到多目录 / 按日期导出 HTML+PDF / 保留天数清理。
 - [ ] 密码本：新建（主密码≥6 位）→ 解锁 → 锁定 → 再解锁 → 改密 → 导出备份 → "打开其他库" → 错误密码提示"主密码错误"。
@@ -98,7 +99,8 @@
 - **验收**：数据不丢、迁移无报错；发布说明包含"升级后请检查连接器/密码本路径"。
 
 ### T6 数据安全与卸载
-- [ ] 验证卸载 1.0.0 后 `%APPDATA%\desktop-pet`、`%APPDATA%\clipboard-plus` 仍保留（数据不随卸载删除）。
+- [x] 验证卸载 1.0.0 后 `%APPDATA%\desktop-pet`、`%APPDATA%\clipboard-plus` 仍保留（沙盒自动化验证通过：数据不随卸载删除）。
+- [x] 验证卸载后安装目录被清理（沙盒自动化验证通过）。
 - [ ] 写清备份/恢复步骤：退出灵犀 → 复制 `clipboard-plus`（DB+图片）、`desktop-pet`（配置/连接器/保险库设置）、密码本 `.pvlt`（如自定义位置）。
 - [ ] 发布前先完成一次自己的完整备份（含 `clipboard-plus.db-wal`：先退出应用再复制）。
 - **验收**：按文档能在另一台机器恢复数据。
@@ -159,6 +161,7 @@
 - 代码签名：**v1 不签名**（证书需付费，用户 2026-11-06 确认不做）；发布说明给 SmartScreen 操作指引；面向企业客户或规模化分发时再评估 OV/EV 证书。
 - 许可与 README：已补 `LICENSE`（All rights reserved）与 `README.md`；`package.json` 的 `license` 改为 `UNLICENSED`，避免公开仓库被误认为开源可复用。
 - T5 升级验收：用户 2026-11-06 决定旧包不再查找 → **取消 0.4.0→1.0.0 升级验收**，改为全新安装验收；发布说明注明不保证从 0.4.0 平滑升级。
+- 沙盒验收（2026-11-06）：启用 Windows 沙盒后自动跑通安装/首启/日志/剪贴板捕获/自启默认关/卸载/数据保留；首次发现"卸载残留空安装目录"，已用 NSIS `customUnInstall` 修复并重新打包，复测全部通过。
 - GitHub：当前网络**可直连**（HTTPS 200、SSH 认证成功，账号 `Snutree`，无需 VPN）；本地仓库已建并提交；待你在 GitHub 创建**私有**仓库后 push（步骤见回复）。
 - 额外资料：`.creative-design/`、`soft-copyright/` 默认不入库，保留本地；需要备份到 GitHub 时再单独添加。
 
@@ -191,7 +194,7 @@ T1（0.5 人日）→ T2（0.25）→ T3（0.5）→ T4+T5（0.5~1）→ T6+T7�
 | 类型检查 | `npm run typecheck` | 通过 |
 | 构建 | `npm run build` | 通过（out 2026-11-06 21:02） |
 | 打包缓存 | `%LOCALAPPDATA%\electron-builder\Cache` | nsis、winCodeSign 已缓存 |
-| 发布产物 | `release/LingX-Setup-1.0.0.exe` | 已生成（85.7 MB，SHA256 `15CE2C89…`） |
+| 发布产物 | `release/LingX-Setup-1.0.0.exe` | 已生成（85.7 MB，SHA256 `64366F41…`） |
 | 版本控制 | `git rev-parse --is-inside-work-tree` | 已建仓库：`b5f0d1e` 基线 + `a665a6d` 版本 1.0.0 |
 | 密钥扫描 | `dev-run.log` | 已于 2026-11-06 删除；staged 扫描无 key |
 | lock 版本 | `package-lock.json` | 1.0.0（已同步） |

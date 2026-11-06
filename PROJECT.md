@@ -11,9 +11,9 @@
 | 定位 | Windows 桌面效率工具：剪贴板收藏整理 + 密码本 + 消息中枢，常驻后台秒开 |
 | 开发主体 | 河北省合光尘软件有限公司（邯郸，一人小微公司） |
 | 技术栈 | Electron 33.4.11 + electron-vite 2.3.0 + Vue 3.5.13 + TypeScript 5.6.3 + better-sqlite3 11.7.0 |
-| 打包 | electron-builder 25.1.8 / NSIS x64（1.0.0 已打包：`release/LingX-Setup-1.0.0.exe`，待干净环境验收） |
+| 打包 | electron-builder 25.1.8 / NSIS x64（1.0.0 已打包并验收：`release/LingX-Setup-1.0.0.exe`） |
 | 代码位置 | `F:\GitHub\zhongshu\desktop-pet` |
-| 当前状态 | v1.0.0 已打包，待干净环境安装验收与发布 |
+| 当前状态 | v1.0.0 已发布（安装包 + 发布说明 + SHA256） |
 
 ## 二、功能矩阵
 
@@ -139,4 +139,4 @@ npm run build:win  # 构建 + electron-builder 打包 NSIS
 | 0.3.0 | 早期"桌面宠物控制板"：桌宠 + 剪贴板 + 密码本雏形（DeskPet） |
 | 0.4.0 | 更名灵犀；剪贴板目录制收藏、消息中心（API 接入 + 轮询 + Webhook）、桌宠可选化、设置优化；已打包分发 |
 | 0.5.0 | 新增任务追踪（自定义状态 + 进度时间线）、消息转任务；v1 闭环：图片显示修复、密码本锁定/换机、运行环境隔离、开机自启策略、系统通知、去重持久化、任意 JSON 消息接入、日志与启动健壮性 |
-| 1.0.0 | 首个 v1 正式版：在 0.5.0 基础上完成发布工程（版本定版、README/LICENSE、NSIS 安装包），安装包 `release/LingX-Setup-1.0.0.exe`（未签名），待干净环境验收 |
+| 1.0.0 | 首个 v1 正式版：在 0.5.0 基础上完成发布工程（版本定版、README/LICENSE、NSIS 安装包），安装包 `release/LingX-Setup-1.0.0.exe`（未签名），已通过沙盒安装/卸载/首启/剪贴板捕获验收并发布 |

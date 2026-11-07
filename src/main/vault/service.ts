@@ -20,6 +20,8 @@ import {
   updateEntry,
   deleteEntry,
   countEntries,
+  renameCategory,
+  deleteCategory,
   type VaultEntry
 } from './database'
 import { generatePassword, type GenerateOptions } from './generator'
@@ -215,6 +217,22 @@ export function registerVaultIpcHandlers(): void {
     if (!vault.isUnlocked) return null
     touchActivity()
     return getEntry(vault.conn, id) ?? null
+  })
+
+  // 分类重命名 / 删除（删除时条目迁移到「未分类」）
+  ipcMain.handle('vault:renameCategory', (_e, oldName: string, newName: string) => {
+    if (!vault.isUnlocked) return { ok: false, error: '未解锁' }
+    touchActivity()
+    const result = renameCategory(vault.conn, oldName ?? '', newName ?? '')
+    if (result.ok) vault.save()
+    return result
+  })
+  ipcMain.handle('vault:deleteCategory', (_e, name: string) => {
+    if (!vault.isUnlocked) return { ok: false, error: '未解锁' }
+    touchActivity()
+    const result = deleteCategory(vault.conn, name ?? '')
+    if (result.ok) vault.save()
+    return result
   })
 
   ipcMain.handle('vault:add', (_e, data: Partial<VaultEntry>) => {

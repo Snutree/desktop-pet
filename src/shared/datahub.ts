@@ -51,4 +51,4 @@ export interface HubMessage {
 }
 
 /** 控制板可切换的页面 */
-export type PanelTab = 'clipboard' | 'vault' | 'messages' | 'tasks' | 'api' | 'settings'
+export type PanelTab = 'clipboard' | 'vault' | 'messages' | 'tasks' | 'launcher' | 'api' | 'settings'

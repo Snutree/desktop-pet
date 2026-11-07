@@ -5,10 +5,11 @@
  *  - 删除（仅编辑态）
  *  - 监听 vault:fill-password 事件（生成器生成后自动填入密码）
  */
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import type { VaultEntry } from '../env.d'
+import CategorySelect from '../../components/CategorySelect.vue'
 
-const props = defineProps<{ entry: VaultEntry | null }>()
+const props = defineProps<{ entry: VaultEntry | null; categories?: string[] }>()
 const emit = defineEmits<{
   (e: 'close'): void
   (e: 'saved', entry: VaultEntry | null): void
@@ -25,6 +26,17 @@ const note = ref('')
 const error = ref('')
 const saving = ref(false)
 const showPassword = ref(false)
+
+/** 已有分类 + 当前分类 + 默认分类 */
+const categoryOptions = computed(() => {
+  const set = new Set<string>(['未分类', ...(props.categories ?? [])])
+  if (category.value) set.add(category.value)
+  return [...set].map((name) => ({ value: name, label: name }))
+})
+
+function onCreateCategory(name: string): void {
+  category.value = name.trim() || '未分类'
+}
 
 onMounted(() => {
   const e = props.entry
@@ -95,7 +107,13 @@ async function remove(): Promise<void> {
       <div class="grid2">
         <div>
           <label>分类</label>
-          <input v-model="category" placeholder="未分类" />
+          <CategorySelect
+            v-model="category"
+            :options="categoryOptions"
+            allow-create
+            create-label="新建分类"
+            @create="onCreateCategory"
+          />
         </div>
         <div>
           <label>账号</label>

@@ -148,3 +148,51 @@ export interface TaskInput {
   due_date?: number | null
   status_id?: number
 }
+
+// ── 启动中心（v1.1） ─────────────────────────────────────
+
+export type LauncherType = 'exe' | 'bat' | 'cmd'
+
+/** 启动分组（左侧分组列表） */
+export interface LauncherGroup {
+  id: number
+  name: string
+  is_default: number
+  created_at: number
+  /** 该分组下启动项数量（列表查询附带） */
+  count?: number
+}
+
+/** 启动项 */
+export interface LauncherEntry {
+  id: number
+  name: string
+  type: LauncherType
+  /** 启动文件完整路径 */
+  file_path: string
+  /** 工作目录（文件所在目录） */
+  dir_path: string
+  group_id: number
+  group_name?: string
+  tags: string[]
+  /** 默认以管理员身份启动 */
+  run_as_admin: number
+  /** lxicon 协议下的图标文件名 */
+  icon_path: string | null
+  sort_order: number
+  last_run_at: number | null
+  run_count: number
+  created_at: number
+  updated_at: number
+}
+
+/** 新建/编辑启动项的输入 */
+export interface LauncherInput {
+  name: string
+  type: LauncherType
+  file_path: string
+  dir_path?: string
+  group_id: number
+  tags?: string[]
+  run_as_admin?: boolean
+}

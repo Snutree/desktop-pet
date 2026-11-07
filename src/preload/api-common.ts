@@ -7,7 +7,7 @@
  */
 import { ipcRenderer, type IpcRendererEvent } from 'electron'
 import { IpcChannels, type PetBubblePayload } from '../shared/ipc'
-import type { ClipRecord, FavoriteRecord, AppSettings, AppInfo, TaskInput, TaskRecord, TaskStatus, TaskProgressLog } from '../shared/types'
+import type { ClipRecord, FavoriteRecord, FavoriteWithCategories, AppSettings, AppInfo, TaskInput, TaskRecord, TaskStatus, TaskProgressLog, LauncherGroup, LauncherEntry, LauncherInput } from '../shared/types'
 import type { GenerateOptions } from '../main/vault/generator'
 import type { VaultEntry } from '../main/vault/database'
 import type { DataSource, HubMessage, PanelTab } from '../shared/datahub'
@@ -48,7 +48,7 @@ export const clipboardPlusApi = {
   listFavorites: (): Promise<FavoriteRecord[]> => ipcRenderer.invoke('favorite:list'),
 
   /** 按目录查收藏 */
-  listFavoritesByCategory: (categoryId: number): Promise<FavoriteRecord[]> =>
+  listFavoritesByCategory: (categoryId: number): Promise<FavoriteWithCategories[]> =>
     ipcRenderer.invoke('favorite:listByCategory', categoryId),
 
   /** 目录列表（默认目录在前） */
@@ -62,6 +62,22 @@ export const clipboardPlusApi = {
   /** 删除目录（默认目录不可删） */
   removeCategory: (id: number): Promise<boolean> =>
     ipcRenderer.invoke('favorite:categories:remove', id),
+
+  /** 重命名目录（默认目录也允许改名） */
+  renameCategory: (id: number, name: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('favorite:categories:rename', id, name),
+
+  /** 把收藏从当前目录移动到其他目录（可多选） */
+  moveFavoriteToCategories: (
+    favoriteId: number,
+    fromCategoryId: number,
+    targetCategoryIds: number[]
+  ): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('favorite:moveToCategories', favoriteId, fromCategoryId, targetCategoryIds),
+
+  /** 目录内收藏拖拽排序 */
+  reorderFavorites: (categoryId: number, orderedIds: number[]): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke('favorite:reorder', categoryId, orderedIds),
 
   /** 将历史记录保存到多个目录；返回收藏 id 与生效目录 id */
   saveFavorite: (
@@ -173,6 +189,19 @@ export const vaultApiObj = {
   categories: (): Promise<{ category: string; count: number }[]> =>
     ipcRenderer.invoke('vault:categories'),
 
+  /** 重命名分类（批量更新该分类下所有条目） */
+  renameCategory: (
+    oldName: string,
+    newName: string
+  ): Promise<{ ok: boolean; error?: string; updated?: number }> =>
+    ipcRenderer.invoke('vault:renameCategory', oldName, newName),
+
+  /** 删除分类（条目迁移到「未分类」） */
+  deleteCategory: (
+    name: string
+  ): Promise<{ ok: boolean; error?: string; moved?: number }> =>
+    ipcRenderer.invoke('vault:deleteCategory', name),
+
   get: (id: number): Promise<VaultEntry | null> => ipcRenderer.invoke('vault:get', id),
 
   add: (data: Partial<VaultEntry>): Promise<{ ok: boolean; id?: number; error?: string }> =>
@@ -225,6 +254,47 @@ export const vaultApiObj = {
   }
 }
 export type VaultApi = typeof vaultApiObj
+
+// ── 启动中心（v1.1） ──────────────────────────────────────
+export const launcherApi = {
+  listGroups: (): Promise<LauncherGroup[]> => ipcRenderer.invoke('launcher:groups:list'),
+  addGroup: (name: string): Promise<{ ok: boolean; data?: LauncherGroup; error?: string }> =>
+    ipcRenderer.invoke('launcher:groups:add', name),
+  renameGroup: (id: number, name: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('launcher:groups:rename', id, name),
+  deleteGroup: (
+    id: number
+  ): Promise<{ ok: boolean; error?: string; deletedItems?: number }> =>
+    ipcRenderer.invoke('launcher:groups:delete', id),
+
+  listEntries: (groupId?: number | null): Promise<LauncherEntry[]> =>
+    ipcRenderer.invoke('launcher:entries:list', groupId ?? null),
+  addEntry: (
+    input: LauncherInput
+  ): Promise<{ ok: boolean; data?: LauncherEntry; error?: string }> =>
+    ipcRenderer.invoke('launcher:entries:add', input),
+  updateEntry: (
+    id: number,
+    patch: Partial<LauncherInput>
+  ): Promise<{ ok: boolean; data?: LauncherEntry; error?: string }> =>
+    ipcRenderer.invoke('launcher:entries:update', id, patch),
+  deleteEntry: (id: number): Promise<boolean> => ipcRenderer.invoke('launcher:entries:delete', id),
+  reorderEntries: (groupId: number, orderedIds: number[]): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke('launcher:entries:reorder', groupId, orderedIds),
+
+  run: (id: number, forceAdmin = false): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('launcher:entries:run', id, forceAdmin),
+  chooseFile: (): Promise<{
+    ok?: boolean
+    canceled?: boolean
+    path?: string
+    dir?: string
+    name?: string
+    ext?: string
+  }> => ipcRenderer.invoke('launcher:chooseFile'),
+  reveal: (id: number): Promise<{ ok: boolean }> => ipcRenderer.invoke('launcher:reveal', id)
+}
+export type LauncherApi = typeof launcherApi
 
 // ── 宠物 ──────────────────────────────────────────────────
 export const petApiObj = {

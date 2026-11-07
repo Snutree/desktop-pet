@@ -3,6 +3,9 @@
 import type { DataSource, HubMessage, PanelTab } from '../../shared/datahub'
 import type {
   AppInfo,
+  LauncherEntry,
+  LauncherGroup,
+  LauncherInput,
   TaskInput,
   TaskRecord,
   TaskStatus,
@@ -53,6 +56,34 @@ declare global {
       setTaskStatus(id: number, statusId: number, note?: string): Promise<TaskRecord | null>
       listTaskLogs(taskId: number): Promise<TaskProgressLog[]>
       addTaskLog(taskId: number, note: string): Promise<TaskProgressLog | null>
+    }
+    launcherApi: {
+      listGroups(): Promise<LauncherGroup[]>
+      addGroup(name: string): Promise<{ ok: boolean; data?: LauncherGroup; error?: string }>
+      renameGroup(id: number, name: string): Promise<{ ok: boolean; error?: string }>
+      deleteGroup(
+        id: number
+      ): Promise<{ ok: boolean; error?: string; deletedItems?: number }>
+      listEntries(groupId?: number | null): Promise<LauncherEntry[]>
+      addEntry(
+        input: LauncherInput
+      ): Promise<{ ok: boolean; data?: LauncherEntry; error?: string }>
+      updateEntry(
+        id: number,
+        patch: Partial<LauncherInput>
+      ): Promise<{ ok: boolean; data?: LauncherEntry; error?: string }>
+      deleteEntry(id: number): Promise<boolean>
+      reorderEntries(groupId: number, orderedIds: number[]): Promise<{ ok: boolean }>
+      run(id: number, forceAdmin?: boolean): Promise<{ ok: boolean; error?: string }>
+      chooseFile(): Promise<{
+        ok?: boolean
+        canceled?: boolean
+        path?: string
+        dir?: string
+        name?: string
+        ext?: string
+      }>
+      reveal(id: number): Promise<{ ok: boolean }>
     }
   }
 }

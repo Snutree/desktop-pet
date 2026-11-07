@@ -1,6 +1,6 @@
 {
   "name": "desktop-pet",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "灵犀：剪贴板收藏整理 + 密码本 + 消息中枢（常驻秒开）",
   "main": "out/main/index.js",
   "author": "河北省合光尘软件有限公司",

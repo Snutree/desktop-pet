@@ -1,7 +1,7 @@
 # 灵犀（desktop-pet）项目介绍
 
 > 本文件用于向外部 AI（如 DeepSeek）介绍项目全貌，以便进行架构审查与优化方案设计。
-> 最后更新：2026-11-06
+> 最后更新：2026-11-08
 
 ## 一、项目概览
 
@@ -13,7 +13,7 @@
 | 技术栈 | Electron 33.4.11 + electron-vite 2.3.0 + Vue 3.5.13 + TypeScript 5.6.3 + better-sqlite3 11.7.0 |
 | 打包 | electron-builder 25.1.8 / NSIS x64（1.0.0 已打包并验收：`release/LingX-Setup-1.0.0.exe`） |
 | 代码位置 | `F:\GitHub\zhongshu\desktop-pet` |
-| 当前状态 | v1.0.0 已发布（安装包 + 发布说明 + SHA256） |
+| 当前状态 | v1.1.0 开发完成（启动中心 + 分组/分类复用改造；未打包验收） |
 
 ## 二、功能矩阵
 
@@ -22,10 +22,11 @@
 | 模块 | 功能 | 状态 |
 |---|---|---|
 | 剪贴板 | 监听系统剪贴板，历史记录按日期分组；截图自动识别保存 | ✅ |
-| 收藏整理 | 目录制收藏（可新建目录、多选目录弹框、默认目录）；收藏页按目录分组展示；支持一键复制、编辑、删除 | ✅ |
-| 密码本 | 集成独立保险库（加密存储 + 主密码 + 密码生成器）；常驻服务化，秒开 | ✅ |
+| 收藏整理 | 目录制收藏（可新建/重命名目录、多选目录弹框、默认目录）；收藏页按目录分组展示；支持一键复制、编辑、删除、目录内拖拽排序；移出最后一个目录时弹窗选择"移动 / 直接删除 / 取消" | ✅ |
+| 密码本 | 集成独立保险库（加密存储 + 主密码 + 密码生成器）；常驻服务化，秒开；分类支持下拉选择、重命名、删除（条目迁移到「未分类」） | ✅ |
 | 消息中心 | 接收自定义 API 消息（官网表单 → 桌面通知/桌宠气泡）；未读标记；消息可"转任务" | ✅ |
-| 任务追踪 | 需求/任务记录与进度管理：自定义状态（增删改、排序、改色）、完整字段、状态切换 + 进度备注时间线 | ✅（0.5.0 新增，未打包） |
+| 任务追踪 | 需求/任务记录与进度管理：自定义状态（增删改、排序、改色）、完整字段、状态切换 + 进度备注时间线 | ✅（0.5.0 新增，1.0.0 起随正式版） |
+| 启动中心 | 管理 `.exe` / `.bat` / `.cmd` 启动项：选择文件自动取所在目录为工作目录，点击 = 等同双击；分组、标签、组内拖拽排序；可保存"默认以管理员启动" | ✅（1.1.0 新增） |
 | API 配置 | 可视化配置第三方 API（URL、Key、轮询间隔），连接器化接入 | ✅ |
 | 桌宠 | 桌面宠物（当前静态橘猫形象），可选功能（默认隐藏）；点击/移动特效 | ✅（可选） |
 | 设置 | 热键、开机自启、剪贴板保留时长等；滚轮滚动，不挤压 | ✅ |
@@ -35,7 +36,7 @@
 ```
 ┌─────────────────────────────────────────────────────┐
 │ 渲染层 renderer（Vue 3）                              │
-│   panel.html  控制板（PanelApp.vue + 6 个视图；密码本为其中一个视图）      │
+│   panel.html  控制板（PanelApp.vue + 7 个视图；密码本为其中一个视图）      │
 │   index.html  桌宠窗口（pet.svg 静态形象 + 特效）       │
 │   screenshot.html 截图预览                            │
 └───────────────┬─────────────────────────────────────┘
@@ -67,27 +68,31 @@
 - **剪贴板**：主进程轮询剪贴板 → hash 去重 → 写 `clip_history` → 历史页按日期展示 → 用户"保存"时写入 `favorites` + `favorite_category_map`（多选目录）
 - **消息接入**：两种通道 —— ① 本地 Webhook 端口 8457（第三方 POST 任意 JSON / 表单编码，字段自动整理）② 轮询连接器（定时 GET/POST 外部 API，如官网 Halo 联系表单的提交记录接口）→ 统一入 `datahub store` → 系统通知 + 桌宠气泡 + 消息中心。旧版线索接口（已下线）不再作为示例。
 - **任务**：消息中心"转任务"→ 预填消息标题/内容/来源 → `tasks` 表；状态变更与进度备注写 `task_progress_logs` 时间线
+- **启动中心**：启动项存 `launcher_entries`（所属分组 `launcher_groups`）→ 点击启动时主进程按文件类型用 `spawn` + 工作目录执行（bat/cmd 显示控制台）→ 保存了"默认管理员"或选择本次管理员时走 PowerShell `Start-Process -Verb RunAs` 触发 UAC
 
-## 四、数据存储设计（SQLite，schema_version = 5）
+## 四、数据存储设计（SQLite，schema_version = 6）
 
 | 表 | 职责 |
 |---|---|
 | `clip_history` | 剪贴板历史（文本/图片/文件，去重 hash） |
 | `favorites` | 收藏条目（内容 + 来源历史 ID） |
 | `favorite_categories` | 收藏目录 |
-| `favorite_category_map` | 收藏 ↔ 目录多对多映射 |
+| `favorite_category_map` | 收藏 ↔ 目录多对多映射（含目录内排序 `sort_order`） |
 | `settings` | 应用设置键值 |
 | `app_meta` | 元信息（schema_version 等） |
 | `task_statuses` | 任务自定义状态（预置：待处理/进行中/已完成/已取消，is_system=1） |
 | `tasks` | 任务（标题/描述/来源/优先级/分类/链接/期望完成时间/状态） |
 | `task_progress_logs` | 任务进度时间线（状态变更 + 备注） |
+| `launcher_groups` | 启动中心分组（默认分组 is_default=1，不可删除） |
+| `launcher_entries` | 启动项（类型/文件路径/工作目录/分组/标签/默认管理员/图标/组内排序） |
 
 数据库独立于 Electron userData（`%APPDATA%\clipboard-plus\`），与旧独立版剪贴板工具共用。
 
 ## 五、IPC 接口（40+ 个通道，preload 白名单）
 
-- **剪贴板/收藏**：`clipboard:list/copy/delete/clearByDate/dates/listByDate/retentionCleanup`、`favorite:list/listByCategory/save/copy/remove/update/findByHistory/removeFromCategory`、`favorite:categories:list/add/remove`
-- **密码本**：vault 系列（登录/条目/生成器/设置）
+- **剪贴板/收藏**：`clipboard:list/copy/delete/clearByDate/dates/listByDate/retentionCleanup`、`favorite:list/listByCategory/save/copy/remove/update/findByHistory/removeFromCategory/moveToCategories/reorder`、`favorite:categories:list/add/remove/rename`
+- **密码本**：vault 系列（登录/条目/生成器/设置/分类重命名与删除）
+- **启动中心**：`launcher:groups:list/add/rename/delete`、`launcher:entries:list/add/update/delete/reorder/run`、`launcher:chooseFile/reveal`
 - **消息**：`datahub` 系列（连接器配置、消息列表、已读/删除、pushTest）
 - **任务**：`task:statuses:list/add/remove`、`task:list/create/update/delete/setStatus/logs/addLog`
 - **系统**：`settings:get/set/getAll`、`hotkey:update`、`app:setAutoStart`、`app:getDbStatus`、`app:getInfo`、`app:openPath`、`notify:test`、`dialog:chooseDirectory`、`screenshot:capture`
@@ -140,3 +145,4 @@ npm run build:win  # 构建 + electron-builder 打包 NSIS
 | 0.4.0 | 更名灵犀；剪贴板目录制收藏、消息中心（API 接入 + 轮询 + Webhook）、桌宠可选化、设置优化；已打包分发 |
 | 0.5.0 | 新增任务追踪（自定义状态 + 进度时间线）、消息转任务；v1 闭环：图片显示修复、密码本锁定/换机、运行环境隔离、开机自启策略、系统通知、去重持久化、任意 JSON 消息接入、日志与启动健壮性 |
 | 1.0.0 | 首个 v1 正式版：在 0.5.0 基础上完成发布工程（版本定版、README/LICENSE、NSIS 安装包），安装包 `release/LingX-Setup-1.0.0.exe`（未签名），已通过沙盒安装/卸载/首启/剪贴板捕获验收并发布 |
+| 1.1.0 | 新增启动中心（exe/bat/cmd 启动项、分组、标签、组内拖拽排序、默认管理员启动、图标提取）；抽取共享分类组件，剪贴板目录支持重命名/目录内拖拽/移出弹窗，密码本分类支持选择/重命名/删除迁移；DB schema v6 |

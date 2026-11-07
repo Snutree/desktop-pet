@@ -70,10 +70,11 @@ CREATE TABLE IF NOT EXISTS favorite_categories (
   created_at INTEGER NOT NULL
 );
 
--- 收藏 ↔ 目录 多对多关联（一条内容可属于多个目录）
+-- 收藏 ↔ 目录 多对多关联（一条内容可属于多个目录；sort_order 为目录内排序）
 CREATE TABLE IF NOT EXISTS favorite_category_map (
   favorite_id INTEGER NOT NULL REFERENCES favorites (id) ON DELETE CASCADE,
   category_id INTEGER NOT NULL REFERENCES favorite_categories (id) ON DELETE CASCADE,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (favorite_id, category_id)
 );
 CREATE INDEX IF NOT EXISTS idx_fcm_cat ON favorite_category_map (category_id);
@@ -124,6 +125,32 @@ CREATE TABLE IF NOT EXISTS task_progress_logs (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_tpl_task ON task_progress_logs (task_id, created_at DESC);
+
+-- 启动中心（v6）：分组 + 启动项
+CREATE TABLE IF NOT EXISTS launcher_groups (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  name       TEXT NOT NULL UNIQUE,
+  is_default INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS launcher_entries (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  name         TEXT NOT NULL,
+  type         TEXT NOT NULL CHECK (type IN ('exe','bat','cmd')),
+  file_path    TEXT NOT NULL,
+  dir_path     TEXT NOT NULL,
+  group_id     INTEGER NOT NULL REFERENCES launcher_groups (id) ON DELETE CASCADE,
+  tags_json    TEXT NOT NULL DEFAULT '[]',
+  run_as_admin INTEGER NOT NULL DEFAULT 0,
+  icon_path    TEXT,
+  sort_order   INTEGER NOT NULL DEFAULT 0,
+  last_run_at  INTEGER,
+  run_count    INTEGER NOT NULL DEFAULT 0,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_launcher_group ON launcher_entries (group_id, sort_order);
 `
 
 /**
@@ -229,7 +256,23 @@ function migrate(database: Database.Database): void {
     }
     setSchemaVersion(database, '5')
   }
-  // 未来 v6：if (current < 6) { ... }
+  if (current < 6) {
+    // v6：启动中心（分组 + 启动项）；收藏目录内排序字段
+    database.exec(SCHEMA_SQL)
+    if (!columnExists(database, 'favorite_category_map', 'sort_order')) {
+      database.exec('ALTER TABLE favorite_category_map ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0')
+    }
+    const defaultGroup = database
+      .prepare('SELECT id FROM launcher_groups WHERE is_default = 1')
+      .get() as { id: number } | undefined
+    if (!defaultGroup) {
+      database
+        .prepare('INSERT INTO launcher_groups (name, is_default, created_at) VALUES (?, 1, ?)')
+        .run('默认分组', Date.now())
+    }
+    setSchemaVersion(database, '6')
+  }
+  // 未来 v7：if (current < 7) { ... }
 }
 
 function setSchemaVersion(database: Database.Database, version: string): void {

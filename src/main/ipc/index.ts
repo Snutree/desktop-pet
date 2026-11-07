@@ -29,6 +29,9 @@ import {
   listCategories,
   addCategory,
   removeCategory,
+  renameCategory as renameFavoriteCategory,
+  moveFavoriteToCategories,
+  reorderFavoritesInCategory,
   saveFavoriteToCategories,
   removeFavoriteFromCategory,
   removeFavorite,
@@ -52,6 +55,22 @@ import {
 } from '../storage/taskRepo'
 import type { TaskInput } from '../../shared/types'
 import type { ScreenshotRegion } from '../../shared/types'
+import type { LauncherInput } from '../../shared/types'
+import {
+  listGroups as listLauncherGroups,
+  addGroup as addLauncherGroup,
+  renameGroup as renameLauncherGroup,
+  deleteGroup as deleteLauncherGroup,
+  listEntries as listLauncherEntries,
+  addEntry as addLauncherEntry,
+  updateEntry as updateLauncherEntry,
+  deleteEntry as deleteLauncherEntry,
+  reorderEntries as reorderLauncherEntries,
+  recordRun as recordLauncherRun,
+  getEntry as getLauncherEntry
+} from '../storage/launcherRepo'
+import { getOrCreateIcon } from '../launcher/icon'
+import { runLauncherEntry } from '../launcher/runner'
 
 /** 注册全部 IPC handler（app ready 后调用一次） */
 export function registerIpcHandlers(): void {
@@ -74,6 +93,18 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('favorite:categories:list', () => listCategories())
   ipcMain.handle('favorite:categories:add', (_event, name: string) => addCategory(name))
   ipcMain.handle('favorite:categories:remove', (_event, id: number) => removeCategory(id))
+  ipcMain.handle('favorite:categories:rename', (_event, id: number, name: string) =>
+    renameFavoriteCategory(id, name)
+  )
+  ipcMain.handle(
+    'favorite:moveToCategories',
+    (_event, favoriteId: number, fromCategoryId: number, targetCategoryIds: number[]) =>
+      moveFavoriteToCategories(favoriteId, fromCategoryId, targetCategoryIds)
+  )
+  ipcMain.handle('favorite:reorder', (_event, categoryId: number, orderedIds: number[]) => {
+    reorderFavoritesInCategory(categoryId, orderedIds)
+    return { ok: true }
+  })
   ipcMain.handle('favorite:save', (_event, historyId: number, categoryIds: number[]) => {
     try {
       const res = saveFavoriteToCategories(historyId, categoryIds)
@@ -210,6 +241,76 @@ export function registerIpcHandlers(): void {
   )
   ipcMain.handle('task:logs', (_event, taskId: number) => listTaskLogs(taskId))
   ipcMain.handle('task:addLog', (_event, taskId: number, note: string) => addTaskLog(taskId, note))
+
+  // ── v1.1：启动中心 ──────────────────────────────────────
+  ipcMain.handle('launcher:groups:list', () => listLauncherGroups())
+  ipcMain.handle('launcher:groups:add', (_event, name: string) => addLauncherGroup(name))
+  ipcMain.handle('launcher:groups:rename', (_event, id: number, name: string) =>
+    renameLauncherGroup(id, name)
+  )
+  ipcMain.handle('launcher:groups:delete', (_event, id: number) => deleteLauncherGroup(id))
+
+  ipcMain.handle('launcher:entries:list', (_event, groupId?: number | null) =>
+    listLauncherEntries(groupId ?? null)
+  )
+  ipcMain.handle('launcher:entries:add', async (_event, input: LauncherInput) => {
+    try {
+      const iconPath = input.file_path ? await getOrCreateIcon(input.file_path) : null
+      return addLauncherEntry(input, iconPath)
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+  ipcMain.handle(
+    'launcher:entries:update',
+    async (_event, id: number, patch: Partial<LauncherInput>) => {
+      try {
+        let iconPath: string | null | undefined
+        if (patch.file_path) iconPath = await getOrCreateIcon(patch.file_path)
+        return updateLauncherEntry(id, patch, iconPath)
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) }
+      }
+    }
+  )
+  ipcMain.handle('launcher:entries:delete', (_event, id: number) => deleteLauncherEntry(id))
+  ipcMain.handle('launcher:entries:reorder', (_event, groupId: number, orderedIds: number[]) => {
+    reorderLauncherEntries(groupId, orderedIds)
+    return { ok: true }
+  })
+  ipcMain.handle('launcher:entries:run', async (_event, id: number, forceAdmin = false) => {
+    const entry = getLauncherEntry(id)
+    if (!entry) return { ok: false, error: '启动项不存在' }
+    const result = await runLauncherEntry(entry, forceAdmin)
+    if (result.ok) recordLauncherRun(id)
+    return result
+  })
+  ipcMain.handle('launcher:chooseFile', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const options: Electron.OpenDialogOptions = {
+      title: '选择启动文件（.exe / .bat / .cmd）',
+      properties: ['openFile'],
+      filters: [{ name: '程序 / 脚本', extensions: ['exe', 'bat', 'cmd'] }]
+    }
+    const result = win
+      ? await dialog.showOpenDialog(win, options)
+      : await dialog.showOpenDialog(options)
+    if (result.canceled || !result.filePaths[0]) return { canceled: true }
+    const file = result.filePaths[0]
+    return {
+      ok: true,
+      path: file,
+      dir: path.dirname(file),
+      name: path.basename(file),
+      ext: path.extname(file).toLowerCase()
+    }
+  })
+  ipcMain.handle('launcher:reveal', (_event, id: number) => {
+    const entry = getLauncherEntry(id)
+    if (!entry) return { ok: false }
+    shell.showItemInFolder(entry.file_path)
+    return { ok: true }
+  })
 }
 
 /** 向所有渲染窗口广播事件（如 clipboard:new 实时推送） */

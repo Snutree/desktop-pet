@@ -40,6 +40,13 @@ declare global {
       activity(): void
       search(keyword: string, category: string | null): Promise<VaultEntry[]>
       categories(): Promise<{ category: string; count: number }[]>
+      renameCategory(
+        oldName: string,
+        newName: string
+      ): Promise<{ ok: boolean; error?: string; updated?: number }>
+      deleteCategory(
+        name: string
+      ): Promise<{ ok: boolean; error?: string; moved?: number }>
       get(id: number): Promise<VaultEntry | null>
       add(data: Partial<VaultEntry>): Promise<{ ok: boolean; id?: number; error?: string }>
       update(

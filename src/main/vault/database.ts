@@ -86,6 +86,40 @@ export function listCategories(db: Database.Database): { category: string; count
     .all() as { category: string; count: number }[]
 }
 
+/** 重命名分类（批量更新该分类下所有条目）；重名/空名/改名为"未分类"时报错 */
+export function renameCategory(
+  db: Database.Database,
+  oldName: string,
+  newName: string
+): { ok: boolean; error?: string; updated?: number } {
+  const from = oldName.trim()
+  const to = newName.trim()
+  if (!from) return { ok: false, error: '分类不存在' }
+  if (!to) return { ok: false, error: '分类名称不能为空' }
+  if (from === to) return { ok: true, updated: 0 }
+  if (to === CATEGORY_DEFAULT) return { ok: false, error: '不能重命名为「未分类」' }
+  const dup = db.prepare('SELECT 1 FROM entries WHERE category = ? LIMIT 1').get(to)
+  if (dup) return { ok: false, error: '分类名称已存在' }
+  const info = db
+    .prepare('UPDATE entries SET category = ?, updated_at = ? WHERE category = ?')
+    .run(to, now(), from)
+  return { ok: true, updated: info.changes }
+}
+
+/** 删除分类：该分类下条目迁移到「未分类」；未分类不可删除 */
+export function deleteCategory(
+  db: Database.Database,
+  name: string
+): { ok: boolean; error?: string; moved?: number } {
+  const target = name.trim()
+  if (!target) return { ok: false, error: '分类不存在' }
+  if (target === CATEGORY_DEFAULT) return { ok: false, error: '「未分类」不可删除' }
+  const info = db
+    .prepare('UPDATE entries SET category = ?, updated_at = ? WHERE category = ?')
+    .run(CATEGORY_DEFAULT, now(), target)
+  return { ok: true, moved: info.changes }
+}
+
 export function countEntries(db: Database.Database): number {
   const row = db.prepare('SELECT COUNT(*) AS c FROM entries').get() as { c: number }
   return row.c

@@ -12,6 +12,7 @@ import PanelClipboard from './views/PanelClipboard.vue'
 import PanelVault from './views/PanelVault.vue'
 import PanelMessages from './views/PanelMessages.vue'
 import TaskTrackView from './views/TaskTrackView.vue'
+import PanelLauncher from './views/PanelLauncher.vue'
 import PanelApi from './views/PanelApi.vue'
 import PanelSettings from './views/PanelSettings.vue'
 
@@ -27,6 +28,7 @@ const pages: Record<PanelTab, unknown> = {
   vault: PanelVault,
   messages: PanelMessages,
   tasks: TaskTrackView,
+  launcher: PanelLauncher,
   api: PanelApi,
   settings: PanelSettings
 }
@@ -37,6 +39,7 @@ const titles: Record<PanelTab, string> = {
   vault: '密码本',
   messages: '消息中心',
   tasks: '任务追踪',
+  launcher: '启动中心',
   api: 'API 配置',
   settings: '设置'
 }
@@ -113,6 +116,9 @@ onUnmounted(() => {
       </button>
       <button class="nav-item" :class="{ active: tab === 'tasks' }" @click="switchTab('tasks')">
         <span class="icon">✅</span>任务追踪
+      </button>
+      <button class="nav-item" :class="{ active: tab === 'launcher' }" @click="switchTab('launcher')">
+        <span class="icon">⚡</span>启动中心
       </button>
 
       <div class="nav-label">系统</div>

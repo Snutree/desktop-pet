@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { ClipRecord, FavoriteRecord, AppSettings } from '../../../shared/types'
+import type { ClipRecord, FavoriteRecord, FavoriteWithCategories, AppSettings } from '../../../shared/types'
 
 declare global {
   /** preload 通过 contextBridge 暴露到 window 的白名单 API（与 src/preload/index.ts 保持一致） */
@@ -17,7 +17,7 @@ declare global {
       clearByDate(date: string): Promise<number>
       onClipboardNew(callback: (record: ClipRecord) => void): () => void
       listFavorites(): Promise<FavoriteRecord[]>
-      listFavoritesByCategory(categoryId: number): Promise<FavoriteRecord[]>
+      listFavoritesByCategory(categoryId: number): Promise<FavoriteWithCategories[]>
       listCategories(): Promise<{
         id: number
         name: string
@@ -28,6 +28,13 @@ declare global {
         name: string
       ): Promise<{ id: number; name: string; is_default: number; created_at: number } | null>
       removeCategory(id: number): Promise<boolean>
+      renameCategory(id: number, name: string): Promise<{ ok: boolean; error?: string }>
+      moveFavoriteToCategories(
+        favoriteId: number,
+        fromCategoryId: number,
+        targetCategoryIds: number[]
+      ): Promise<{ ok: boolean; error?: string }>
+      reorderFavorites(categoryId: number, orderedIds: number[]): Promise<{ ok: boolean }>
       saveFavorite(
         historyId: number,
         categoryIds: number[]

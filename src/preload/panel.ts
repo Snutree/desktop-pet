@@ -11,15 +11,18 @@ import {
   vaultApiObj,
   petApiObj,
   panelApi,
+  launcherApi,
   type ClipboardPlusApi,
   type VaultApi,
   type PetApi,
-  type PanelApi
+  type PanelApi,
+  type LauncherApi
 } from './api-common'
 
 contextBridge.exposeInMainWorld('clipboardPlus', clipboardPlusApi)
 contextBridge.exposeInMainWorld('vaultApi', vaultApiObj)
 contextBridge.exposeInMainWorld('pet', petApiObj)
 contextBridge.exposeInMainWorld('panelApi', panelApi)
+contextBridge.exposeInMainWorld('launcherApi', launcherApi)
 
-export type { ClipboardPlusApi, VaultApi, PetApi, PanelApi }
+export type { ClipboardPlusApi, VaultApi, PetApi, PanelApi, LauncherApi }

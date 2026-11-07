@@ -6,6 +6,8 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import type { VaultEntry } from '../env.d'
 import EntryDialog from './EntryDialog.vue'
 import GenDialog from './GenDialog.vue'
+import CategoryNav from '../../components/CategoryNav.vue'
+import ConfirmDialog from '../../components/ConfirmDialog.vue'
 
 const props = defineProps<{ vaultPath: string }>()
 const emit = defineEmits<{ (e: 'locked'): void }>()
@@ -25,6 +27,31 @@ const showEntryDialog = ref(false)
 const editingEntry = ref<VaultEntry | null>(null)
 const showGenDialog = ref(false)
 const showSettings = ref(false)
+const confirmDeleteCategory = ref<string | null>(null)
+
+/** 分类导航项：第一项固定为「全部」 */
+const navItems = computed(() => {
+  const total = categories.value.find((c) => c.category === '全部')?.count ?? entryCount.value
+  const real = categories.value.filter((c) => c.category !== '全部')
+  return [
+    { id: '全部', name: '全部', count: total },
+    ...real.map((c) => ({
+      id: c.category,
+      name: c.category,
+      count: c.count,
+      isDefault: c.category === '未分类'
+    }))
+  ]
+})
+
+/** 传给新增/编辑弹窗的已有分类（不含「全部」） */
+const categoryNames = computed(() =>
+  categories.value.filter((c) => c.category !== '全部').map((c) => c.category)
+)
+
+const canRenameItem = (item: { id: string | number }): boolean => item.id !== '全部'
+const canDeleteItem = (item: { id: string | number }): boolean =>
+  item.id !== '全部' && item.id !== '未分类'
 
 const selected = computed(() =>
   selectedId.value === null ? null : entries.value.find((e) => e.id === selectedId.value) ?? null
@@ -58,6 +85,39 @@ function showToast(msg: string): void {
 function selectCategory(cat: string): void {
   activeCategory.value = cat
   void loadEntries()
+}
+
+async function renameCategory(id: string | number, name: string): Promise<void> {
+  const oldName = String(id)
+  const res = await window.vaultApi.renameCategory(oldName, name)
+  if (!res.ok) {
+    showToast(res.error ?? '重命名失败')
+    return
+  }
+  if (activeCategory.value === oldName) activeCategory.value = name
+  await loadCategories()
+  await loadEntries()
+  showToast('分类已重命名')
+}
+
+function askDeleteCategory(id: string | number): void {
+  confirmDeleteCategory.value = String(id)
+}
+
+async function doDeleteCategory(): Promise<void> {
+  const name = confirmDeleteCategory.value
+  confirmDeleteCategory.value = null
+  if (!name) return
+  const count = categories.value.find((c) => c.category === name)?.count ?? 0
+  const res = await window.vaultApi.deleteCategory(name)
+  if (!res.ok) {
+    showToast(res.error ?? '删除失败')
+    return
+  }
+  if (activeCategory.value === name) activeCategory.value = '未分类'
+  await loadCategories()
+  await loadEntries()
+  showToast(`分类已删除，${count} 条密码已移动到「未分类」`)
 }
 
 let searchTimer: number | null = null
@@ -152,19 +212,19 @@ onMounted(() => {
 
     <div class="body">
       <!-- 分类栏 -->
-      <aside class="sidebar">
-        <button
-          v-for="c in categories"
-          :key="c.category"
-          class="cat"
-          :class="{ active: activeCategory === c.category }"
-          @click="selectCategory(c.category)"
-        >
-          <span class="cat-name">{{ c.category }}</span>
-          <span class="cat-count">{{ c.count }}</span>
-        </button>
-        <div class="footnote">{{ entryCount }} 条记录</div>
-      </aside>
+      <CategoryNav
+        title="分类"
+        :items="navItems"
+        :active-id="activeCategory"
+        :allow-add="false"
+        allow-rename
+        allow-delete
+        :can-rename="canRenameItem"
+        :can-delete="canDeleteItem"
+        @select="selectCategory(String($event))"
+        @rename="renameCategory"
+        @delete="askDeleteCategory"
+      />
 
       <!-- 条目列表 -->
       <section class="list">
@@ -232,6 +292,7 @@ onMounted(() => {
     <EntryDialog
       v-if="showEntryDialog"
       :entry="editingEntry"
+      :categories="categoryNames"
       @close="showEntryDialog = false"
       @saved="onSaved"
       @deleted="onDeleted"
@@ -239,6 +300,16 @@ onMounted(() => {
     />
     <GenDialog v-if="showGenDialog" @close="showGenDialog = false" @use="useGenerated" />
     <SettingsDialog v-if="showSettings" @close="showSettings = false" @locked="emit('locked')" />
+
+    <ConfirmDialog
+      v-if="confirmDeleteCategory"
+      title="删除分类"
+      :message="`删除分类「${confirmDeleteCategory}」后，其中的密码将移动到「未分类」。`"
+      confirm-text="删除"
+      danger
+      @confirm="doDeleteCategory"
+      @cancel="confirmDeleteCategory = null"
+    />
 
     <div v-if="toast" class="toast">{{ toast }}</div>
   </div>

@@ -1,34 +1,56 @@
 <script setup lang="ts">
 /**
- * 收藏面板（v4：目录制）
- *  - 左侧目录列表（默认收藏在前），右侧该目录内容
- *  - 每条：一键复制（按收藏 id）/ 编辑（共享内容，全局生效）/ 移出目录
- *  - 图片点击放大
+ * 收藏面板（v1.1）
+ *  - 左侧目录列表（共享 CategoryNav，可重命名）
+ *  - 右侧该目录内容；目录内可拖拽排序
+ *  - 移出目录：若收藏只属于当前目录，弹窗选择"移动到其他目录 / 直接删除 / 取消"
  */
-import { onBeforeUnmount, onMounted, ref } from 'vue'
-import type { FavoriteRecord } from '../../../shared/types'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import type { FavoriteWithCategories } from '../../../shared/types'
 import FavoriteItem from '../components/FavoriteItem.vue'
 import ImagePreview from '../components/ImagePreview.vue'
+import CategoryNav from '../../components/CategoryNav.vue'
+import MoveToCategoryDialog from '../../components/MoveToCategoryDialog.vue'
+import { useDragSort } from '../../composables/useDragSort'
 
-const favorites = ref<FavoriteRecord[]>([])
+const favorites = ref<FavoriteWithCategories[]>([])
 const categories = ref<{ id: number; name: string; is_default: number; created_at: number }[]>([])
 const activeCatId = ref<number | null>(null)
-const newCatName = ref('')
 const loading = ref(true)
 const error = ref('')
 const previewImage = ref<string | null>(null)
 const toast = ref('')
 let toastTimer: number | undefined
 
-const activeCatName = (): string =>
-  categories.value.find((c) => c.id === activeCatId.value)?.name ?? ''
+const moveTarget = ref<{ id: number; label: string } | null>(null)
 
-function showToast(msg: string): void {
+const activeCatName = computed(
+  () => categories.value.find((c) => c.id === activeCatId.value)?.name ?? ''
+)
+
+const navItems = computed(() =>
+  categories.value.map((c) => ({
+    id: c.id,
+    name: c.name,
+    isDefault: c.is_default === 1
+  }))
+)
+
+const { draggingId, onDragStart, onDragOver, onDrop, onDragEnd } = useDragSort(
+  () => favorites.value,
+  async (orderedIds) => {
+    if (activeCatId.value == null) return
+    await window.clipboardPlus.reorderFavorites(activeCatId.value, orderedIds)
+    await loadFavorites()
+  }
+)
+
+function showToast(msg: string, duration = 1600): void {
   toast.value = msg
   if (toastTimer) window.clearTimeout(toastTimer)
   toastTimer = window.setTimeout(() => {
     toast.value = ''
-  }, 1600)
+  }, duration)
 }
 
 async function loadCategories(): Promise<void> {
@@ -38,45 +60,57 @@ async function loadCategories(): Promise<void> {
   }
 }
 
+async function loadFavorites(): Promise<void> {
+  favorites.value =
+    activeCatId.value != null
+      ? await window.clipboardPlus.listFavoritesByCategory(activeCatId.value)
+      : []
+}
+
 async function reload(): Promise<void> {
   try {
     await loadCategories()
-    if (activeCatId.value != null) {
-      favorites.value = await window.clipboardPlus.listFavoritesByCategory(activeCatId.value)
-    } else {
-      favorites.value = []
-    }
+    await loadFavorites()
     error.value = ''
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   }
 }
 
-async function selectCat(id: number): Promise<void> {
-  activeCatId.value = id
+async function selectCat(id: string | number): Promise<void> {
+  activeCatId.value = Number(id)
   try {
-    favorites.value = await window.clipboardPlus.listFavoritesByCategory(id)
+    await loadFavorites()
     error.value = ''
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   }
 }
 
-async function createCategory(): Promise<void> {
-  const name = newCatName.value.trim()
-  if (!name) return
+async function addCategory(name: string): Promise<void> {
   const cat = await window.clipboardPlus.addCategory(name)
-  if (cat) {
-    newCatName.value = ''
-    await loadCategories()
-    await selectCat(cat.id)
-    showToast('目录已创建')
-  } else {
+  if (!cat) {
     showToast('目录名已存在或无效')
+    return
   }
+  await loadCategories()
+  await selectCat(cat.id)
+  showToast('目录已创建')
 }
 
-async function removeCategory(cat: { id: number; name: string; is_default: number }): Promise<void> {
+async function renameCategory(id: string | number, name: string): Promise<void> {
+  const res = await window.clipboardPlus.renameCategory(Number(id), name)
+  if (!res.ok) {
+    showToast(res.error ?? '重命名失败')
+    return
+  }
+  await loadCategories()
+  showToast('目录已重命名')
+}
+
+async function removeCategory(id: string | number): Promise<void> {
+  const cat = categories.value.find((c) => c.id === Number(id))
+  if (!cat) return
   if (cat.is_default === 1) {
     showToast('默认目录不可删除')
     return
@@ -96,11 +130,44 @@ async function onCopy(id: number): Promise<void> {
   showToast(ok ? '已复制到剪贴板' : '复制失败')
 }
 
-/** 移出当前目录（内容不再属于任何目录时自动删除本体） */
+/**
+ * 移出目录：
+ *  - 收藏还在其他目录 → 直接移出当前目录
+ *  - 只属于当前目录 → 弹窗选择移动目标 / 直接删除 / 取消
+ */
 async function onRemoveFromCategory(favoriteId: number): Promise<void> {
   if (activeCatId.value == null) return
-  const ok = await window.clipboardPlus.removeFavoriteFromCategory(favoriteId, activeCatId.value)
-  showToast(ok ? '已移出该目录' : '操作失败')
+  const favorite = favorites.value.find((f) => f.id === favoriteId)
+  const catIds = favorite?.categoryIds ?? []
+  if (catIds.length > 1) {
+    const ok = await window.clipboardPlus.removeFavoriteFromCategory(favoriteId, activeCatId.value)
+    showToast(ok ? '已移出该目录' : '操作失败')
+    await reload()
+    return
+  }
+  const label = favorite?.text_content?.slice(0, 24) || '（图片收藏）'
+  moveTarget.value = { id: favoriteId, label }
+}
+
+async function onMoveToCategories(categoryIds: number[]): Promise<void> {
+  const target = moveTarget.value
+  moveTarget.value = null
+  if (!target || activeCatId.value == null) return
+  const res = await window.clipboardPlus.moveFavoriteToCategories(
+    target.id,
+    activeCatId.value,
+    categoryIds
+  )
+  showToast(res.ok ? '已移动到所选目录' : (res.error ?? '移动失败'))
+  await reload()
+}
+
+async function onDeleteMovedFavorite(): Promise<void> {
+  const target = moveTarget.value
+  moveTarget.value = null
+  if (!target) return
+  const ok = await window.clipboardPlus.removeFavorite(target.id)
+  showToast(ok ? '收藏已删除' : '删除失败')
   await reload()
 }
 
@@ -109,6 +176,8 @@ async function onUpdate(id: number, patch: { text?: string; note?: string }): Pr
   showToast(updated ? '已保存（所有目录同步生效）' : '保存失败')
   await reload()
 }
+
+const canDrag = computed(() => favorites.value.length > 1)
 
 onMounted(async () => {
   await reload()
@@ -122,46 +191,26 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="fav-page">
-    <!-- 目录栏 -->
-    <aside class="cats">
-      <div class="cats-t">目录</div>
-      <div class="cat-list">
-        <button
-          v-for="c in categories"
-          :key="c.id"
-          class="cat"
-          :class="{ active: c.id === activeCatId }"
-          @click="selectCat(c.id)"
-        >
-          <span class="cat-name">{{ c.name }}</span>
-          <em v-if="c.is_default === 1" class="def">默认</em>
-          <span
-            v-if="c.is_default !== 1"
-            class="del"
-            title="删除目录"
-            @click.stop="removeCategory(c)"
-          >
-            ✕
-          </span>
-        </button>
-        <div v-if="categories.length === 0" class="cats-empty">暂无目录</div>
-      </div>
-      <div class="cats-new">
-        <input
-          v-model="newCatName"
-          class="new-input"
-          placeholder="新建目录"
-          @keydown.enter.prevent="createCategory"
-        />
-        <button class="new-btn" title="新建目录" @click="createCategory">＋</button>
-      </div>
-    </aside>
+    <CategoryNav
+      title="目录"
+      :items="navItems"
+      :active-id="activeCatId"
+      allow-add
+      add-placeholder="新建目录"
+      allow-rename
+      allow-delete
+      :can-delete="(item) => !categories.find((c) => c.id === Number(item.id))?.is_default"
+      @select="selectCat"
+      @add="addCategory"
+      @rename="renameCategory"
+      @delete="removeCategory"
+    />
 
     <!-- 内容区 -->
     <section class="content">
       <div class="toolbar">
         <span class="count">
-          {{ activeCatName() || '选择目录' }} · {{ favorites.length }} 条
+          {{ activeCatName || '选择目录' }} · {{ favorites.length }} 条
         </span>
       </div>
 
@@ -184,6 +233,12 @@ onBeforeUnmount(() => {
           v-for="f in favorites"
           :key="f.id"
           :favorite="f"
+          :class="{ dragging: draggingId === f.id }"
+          :draggable="canDrag"
+          @dragstart="onDragStart(f)"
+          @dragover.prevent="onDragOver"
+          @drop="onDrop(f)"
+          @dragend="onDragEnd"
           @copy="onCopy"
           @remove="onRemoveFromCategory"
           @update="onUpdate"
@@ -193,6 +248,16 @@ onBeforeUnmount(() => {
     </section>
 
     <ImagePreview v-if="previewImage" :image-path="previewImage" @close="previewImage = null" />
+
+    <MoveToCategoryDialog
+      v-if="moveTarget"
+      :favorite-name="moveTarget.label"
+      :categories="categories.map((c) => ({ id: c.id, name: c.name }))"
+      :current-category-id="activeCatId ?? 0"
+      @move="onMoveToCategories"
+      @delete="onDeleteMovedFavorite"
+      @cancel="moveTarget = null"
+    />
 
     <transition name="toast">
       <div v-if="toast" class="toast">{{ toast }}</div>
@@ -206,137 +271,6 @@ onBeforeUnmount(() => {
   gap: 14px;
   height: 100%;
   min-height: 0;
-}
-
-/* ── 目录栏 ── */
-.cats {
-  flex: 0 0 168px;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  border-right: 1px solid var(--border);
-  padding-right: 12px;
-}
-
-.cats-t {
-  font-size: 11px;
-  color: var(--text-secondary);
-  letter-spacing: 1px;
-}
-
-.cat-list {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.cat {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid transparent;
-  background: transparent;
-  border-radius: 8px;
-  padding: 7px 10px;
-  font-size: 13px;
-  font-family: inherit;
-  color: var(--text);
-  cursor: pointer;
-  text-align: left;
-}
-
-.cat:hover {
-  background: var(--head-bg);
-}
-
-.cat.active {
-  background: var(--accent-bg);
-  border-color: var(--accent);
-  font-weight: 600;
-}
-
-.cat-name {
-  flex: 1;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.cat .def {
-  font-style: normal;
-  font-size: 10.5px;
-  background: var(--accent);
-  color: var(--accent-text);
-  border-radius: 5px;
-  padding: 1px 6px;
-}
-
-.cat .del {
-  color: var(--text-secondary);
-  font-size: 11px;
-  padding: 2px 4px;
-  border-radius: 4px;
-  visibility: hidden;
-}
-
-.cat:hover .del {
-  visibility: visible;
-}
-
-.cat .del:hover {
-  color: var(--red);
-  background: var(--red-bg);
-}
-
-.cats-empty {
-  font-size: 12px;
-  color: var(--text-secondary);
-  text-align: center;
-  padding: 16px 0;
-}
-
-.cats-new {
-  display: flex;
-  gap: 6px;
-}
-
-.new-input {
-  flex: 1;
-  min-width: 0;
-  font-family: inherit;
-  font-size: 12px;
-  border: 1px solid var(--border-strong);
-  background: var(--input-bg);
-  border-radius: 8px;
-  padding: 6px 9px;
-  color: var(--text);
-  outline: none;
-}
-
-.new-input:focus {
-  border-color: var(--accent);
-}
-
-.new-btn {
-  flex: 0 0 auto;
-  width: 28px;
-  border: 1px solid var(--border-strong);
-  background: var(--input-bg);
-  border-radius: 8px;
-  font-size: 15px;
-  line-height: 1;
-  cursor: pointer;
-  color: var(--text-secondary);
-}
-
-.new-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent-deep);
 }
 
 /* ── 内容区 ── */
@@ -370,6 +304,10 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.list :deep(li.dragging) {
+  opacity: 0.55;
 }
 
 .empty {

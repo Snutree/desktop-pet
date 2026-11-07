@@ -58,6 +58,24 @@ export function removeCategory(id: number): boolean {
   return true
 }
 
+/** 重命名目录（默认目录也允许改名，默认标记不变）；重名/空名报错 */
+export function renameCategory(id: number, name: string): { ok: boolean; error?: string } {
+  const trimmed = name.trim()
+  if (!trimmed) return { ok: false, error: '目录名称不能为空' }
+  const db = getDb()
+  const cat = db.prepare('SELECT * FROM favorite_categories WHERE id = ?').get(id) as
+    | FavoriteCategory
+    | undefined
+  if (!cat) return { ok: false, error: '目录不存在' }
+  if (cat.name === trimmed) return { ok: true }
+  const dup = db
+    .prepare('SELECT id FROM favorite_categories WHERE name = ? AND id != ?')
+    .get(trimmed, id)
+  if (dup) return { ok: false, error: '目录名称已存在' }
+  db.prepare('UPDATE favorite_categories SET name = ? WHERE id = ?').run(trimmed, id)
+  return { ok: true }
+}
+
 /** 收藏所属目录 id 列表 */
 export function getFavoriteCategoryIds(favoriteId: number): number[] {
   const rows = getDb()
@@ -76,14 +94,14 @@ export function listFavorites(): FavoriteWithCategories[] {
   return rows.map((r) => ({ ...r, categoryIds: getFavoriteCategoryIds(r.id) }))
 }
 
-/** 按目录查收藏（倒序，含所属目录 id） */
+/** 按目录查收藏（目录内排序优先，新收藏默认排最前） */
 export function listFavoritesByCategory(categoryId: number): FavoriteWithCategories[] {
   const rows = getDb()
     .prepare(
       `SELECT f.* FROM favorites f
        JOIN favorite_category_map m ON m.favorite_id = f.id
        WHERE m.category_id = ?
-       ORDER BY f.created_at DESC, f.id DESC`
+       ORDER BY m.sort_order ASC, f.created_at DESC, f.id DESC`
     )
     .all(categoryId) as FavoriteRecord[]
   return rows.map((r) => ({ ...r, categoryIds: getFavoriteCategoryIds(r.id) }))
@@ -168,11 +186,16 @@ export function saveFavoriteToCategories(
         )
       favoriteId = Number(info.lastInsertRowid)
     }
-    // 建立目录关联
+    // 建立目录关联（新关联排在该目录最前）
     for (const cid of ids) {
+      const minRow = db
+        .prepare(
+          'SELECT COALESCE(MIN(sort_order), 1) AS m FROM favorite_category_map WHERE category_id = ?'
+        )
+        .get(cid) as { m: number }
       db.prepare(
-        'INSERT OR IGNORE INTO favorite_category_map (favorite_id, category_id) VALUES (?, ?)'
-      ).run(favoriteId, cid)
+        'INSERT OR IGNORE INTO favorite_category_map (favorite_id, category_id, sort_order) VALUES (?, ?, ?)'
+      ).run(favoriteId, cid, minRow.m - 1)
     }
     // 同步历史收藏保护标记
     db.prepare('UPDATE clip_history SET is_favorite = 1, updated_at = ? WHERE id = ?').run(
@@ -217,6 +240,57 @@ export function removeFavoriteFromCategory(favoriteId: number, categoryId: numbe
     deleteImageFiles(favorite.image_path, favorite.thumbnail_path)
   }
   return true
+}
+
+/**
+ * 把收藏从某目录移动到指定目录（可多选目标目录）。
+ * 目标为空时报错；调用方在"不移动到其他目录"时应改用 removeFavorite。
+ */
+export function moveFavoriteToCategories(
+  favoriteId: number,
+  fromCategoryId: number,
+  targetCategoryIds: number[]
+): { ok: boolean; error?: string } {
+  const db = getDb()
+  const favorite = getFavoriteById(favoriteId)
+  if (!favorite) return { ok: false, error: '收藏不存在' }
+  const targets = [...new Set(targetCategoryIds)].filter(
+    (id): id is number => Number.isInteger(id) && id > 0 && id !== fromCategoryId
+  )
+  if (targets.length === 0) return { ok: false, error: '请选择要移动到的目录' }
+
+  const tx = db.transaction((): void => {
+    db.prepare(
+      'DELETE FROM favorite_category_map WHERE favorite_id = ? AND category_id = ?'
+    ).run(favoriteId, fromCategoryId)
+    for (const cid of targets) {
+      const exists = db.prepare('SELECT id FROM favorite_categories WHERE id = ?').get(cid)
+      if (!exists) continue
+      const minRow = db
+        .prepare(
+          'SELECT COALESCE(MIN(sort_order), 1) AS m FROM favorite_category_map WHERE category_id = ?'
+        )
+        .get(cid) as { m: number }
+      db.prepare(
+        'INSERT OR IGNORE INTO favorite_category_map (favorite_id, category_id, sort_order) VALUES (?, ?, ?)'
+      ).run(favoriteId, cid, minRow.m - 1)
+    }
+  })
+  tx()
+  return { ok: true }
+}
+
+/** 目录内收藏拖拽排序：按传入顺序写 sort_order */
+export function reorderFavoritesInCategory(categoryId: number, orderedFavoriteIds: number[]): void {
+  const db = getDb()
+  const ids = orderedFavoriteIds.filter((id) => Number.isInteger(id) && id > 0)
+  const tx = db.transaction((): void => {
+    const upd = db.prepare(
+      'UPDATE favorite_category_map SET sort_order = ? WHERE favorite_id = ? AND category_id = ?'
+    )
+    ids.forEach((id, index) => upd.run(index, id, categoryId))
+  })
+  tx()
 }
 
 /** 删除整条收藏（同时解除全部目录关联 + 回置历史标记） */

@@ -11,6 +11,9 @@ import Database from 'better-sqlite3'
 
 let db: Database.Database | null = null
 
+/** 当前程序支持的最新 schema 版本 */
+const LATEST_SCHEMA_VERSION = 6
+
 /** 数据根目录：%APPDATA%/clipboard-plus（与独立版共用，保留旧数据） */
 export function getDataRoot(): string {
   return path.join(app.getPath('appData'), 'clipboard-plus')
@@ -168,10 +171,56 @@ export function initDatabase(): Database.Database {
   db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')
 
+  // 老库升级前先做一致性备份（VACUUM INTO 会包含 WAL 中已提交的数据）
+  const beforeVersion = currentSchemaVersion(db)
+  if (beforeVersion > 0 && beforeVersion < LATEST_SCHEMA_VERSION) {
+    backupBeforeMigration(db, beforeVersion)
+  }
+
   db.exec(SCHEMA_SQL)
   migrate(db)
 
   return db
+}
+
+/** 读取当前库的 schema 版本；新库/表不存在时返回 0 */
+function currentSchemaVersion(database: Database.Database): number {
+  try {
+    const row = database
+      .prepare('SELECT value FROM app_meta WHERE key = ?')
+      .get('schema_version') as { value: string } | undefined
+    return row ? Number(row.value) || 0 : 0
+  } catch {
+    return 0
+  }
+}
+
+/** 迁移前备份；失败只记录日志，不阻塞启动。最多保留 3 份。 */
+function backupBeforeMigration(database: Database.Database, fromVersion: number): void {
+  try {
+    const backupDir = path.join(getDataRoot(), 'backups')
+    fs.mkdirSync(backupDir, { recursive: true })
+    const file = path.join(backupDir, `clipboard-plus.v${fromVersion}-${Date.now()}.db`)
+    const escaped = file.replace(/'/g, "''")
+    database.exec(`VACUUM INTO '${escaped}'`)
+    console.log(`[db] 迁移前备份：${file}`)
+
+    const keep = 3
+    const files = fs
+      .readdirSync(backupDir)
+      .filter((name) => /^clipboard-plus\.v\d+-\d+\.db$/.test(name))
+      .map((name) => path.join(backupDir, name))
+      .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs)
+    for (const old of files.slice(keep)) {
+      try {
+        fs.unlinkSync(old)
+      } catch {
+        /* 保留旧备份失败不影响启动 */
+      }
+    }
+  } catch (err) {
+    console.warn('[db] 迁移前备份失败（继续启动）：', err)
+  }
 }
 
 /**

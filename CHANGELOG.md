@@ -25,6 +25,12 @@
 - SQLite `schema_version = 6`：新增 `launcher_groups` / `launcher_entries`；`favorite_category_map` 增加 `sort_order`（目录内排序）。旧库启动时自动迁移。
 - 保险库格式不变。
 
+### 发布
+
+- 安装包：`release/LingX-Setup-1.1.0.exe`（未代码签名）。
+- SHA256：`73401973898588D888006B6D69FDAA725548EFD4C3DB81006E512C7D9DE7F404`。
+- 安装/升级/已知问题见 `docs/release-notes-1.1.0.md`。
+
 ### 已知限制
 
 - 启动中心目前只支持 `.exe` / `.bat` / `.cmd`；管理员启动依赖 Windows UAC。

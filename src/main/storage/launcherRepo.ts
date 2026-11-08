@@ -82,13 +82,14 @@ export function addGroup(name: string): { ok: boolean; data?: LauncherGroup; err
   }
 }
 
-/** 重命名分组（默认分组也允许改名）；重名报错 */
+/** 重命名分组（默认分组不可改名，其余分组可改名；重名报错） */
 export function renameGroup(id: number, name: string): { ok: boolean; error?: string } {
   const trimmed = name.trim()
   if (!trimmed) return { ok: false, error: '分组名称不能为空' }
   const db = getDb()
   const group = getGroup(id)
   if (!group) return { ok: false, error: '分组不存在' }
+  if (group.is_default === 1) return { ok: false, error: '默认分组不可重命名' }
   if (group.name === trimmed) return { ok: true }
   const dup = db.prepare('SELECT id FROM launcher_groups WHERE name = ? AND id != ?').get(trimmed, id)
   if (dup) return { ok: false, error: '分组名称已存在' }

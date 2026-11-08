@@ -22,7 +22,6 @@ const loading = ref(true)
 const toast = ref('')
 let toastTimer: number | undefined
 const startErrors = ref<Record<number, string>>({})
-const menuEntryId = ref<number | null>(null)
 
 const showEditor = ref(false)
 const editingId = ref<number | null>(null)
@@ -116,7 +115,6 @@ async function reload(): Promise<void> {
 async function selectGroup(id: string | number): Promise<void> {
   activeGroupId.value = Number(id)
   startErrors.value = {}
-  menuEntryId.value = null
   await loadEntries()
 }
 
@@ -177,7 +175,6 @@ function openAdd(): void {
 }
 
 async function openEdit(entry: LauncherEntry): Promise<void> {
-  menuEntryId.value = null
   editingId.value = entry.id
   form.value = {
     name: entry.name,
@@ -266,9 +263,8 @@ async function save(): Promise<void> {
   }
 }
 
-async function run(entry: LauncherEntry, forceAdmin = false): Promise<void> {
-  menuEntryId.value = null
-  const res = await window.launcherApi.run(entry.id, forceAdmin)
+async function run(entry: LauncherEntry): Promise<void> {
+  const res = await window.launcherApi.run(entry.id)
   if (res.ok) {
     delete startErrors.value[entry.id]
     await loadEntries()
@@ -293,25 +289,19 @@ async function doDeleteEntry(): Promise<void> {
 }
 
 function askDeleteEntry(entry: LauncherEntry): void {
-  menuEntryId.value = null
   confirmDeleteEntry.value = entry
 }
 
-function toggleMenu(id: number): void {
-  menuEntryId.value = menuEntryId.value === id ? null : id
-}
-
-function onDocumentClick(): void {
-  menuEntryId.value = null
+/** 默认分组不允许重命名 */
+function canRenameGroup(item: { id: string | number }): boolean {
+  return !groups.value.find((g) => g.id === Number(item.id))?.is_default
 }
 
 onMounted(async () => {
-  document.addEventListener('click', onDocumentClick)
   await reload()
 })
 
 onBeforeUnmount(() => {
-  document.removeEventListener('click', onDocumentClick)
   if (toastTimer) window.clearTimeout(toastTimer)
 })
 </script>
@@ -333,6 +323,7 @@ onBeforeUnmount(() => {
       add-placeholder="新建分组"
       allow-rename
       allow-delete
+      :can-rename="canRenameGroup"
       :can-delete="(item) => !groups.find((g) => g.id === Number(item.id))?.is_default"
       @select="selectGroup"
       @add="addGroup"
@@ -401,13 +392,9 @@ onBeforeUnmount(() => {
           </div>
 
           <div class="row-actions">
-            <button class="run-btn" @click="run(entry)">启动</button>
-            <button class="more-btn" title="更多" @click.stop="toggleMenu(entry.id)">▾</button>
-            <div v-if="menuEntryId === entry.id" class="menu" @click.stop>
-              <button class="menu-item" @click="run(entry, true)">以管理员身份启动（本次）</button>
-              <button class="menu-item" @click="openEdit(entry)">编辑</button>
-              <button class="menu-item" @click="askDeleteEntry(entry)">删除</button>
-            </div>
+            <button class="act-btn start" @click="run(entry)">启动</button>
+            <button class="act-btn edit" @click="openEdit(entry)">编辑</button>
+            <button class="act-btn del" @click="askDeleteEntry(entry)">删除</button>
           </div>
         </li>
       </ul>
@@ -684,66 +671,38 @@ onBeforeUnmount(() => {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 4px;
-  position: relative;
+  gap: 6px;
 }
 
-.run-btn {
+.act-btn {
   border: none;
-  background: var(--accent, #e8a87c);
-  color: #fff;
   border-radius: 7px;
-  padding: 6px 16px;
+  padding: 6px 14px;
   font-size: 12.5px;
   font-family: inherit;
   cursor: pointer;
   font-weight: 600;
+  color: #fff;
 }
 
-.run-btn:hover {
-  filter: brightness(0.95);
+.act-btn.start {
+  background: #52c41a;
 }
 
-.more-btn {
-  border: 1px solid var(--border-strong, rgba(0, 0, 0, 0.14));
-  background: #fff;
-  color: var(--text-secondary, #6b7280);
-  border-radius: 7px;
-  width: 28px;
-  height: 28px;
-  font-size: 12px;
-  cursor: pointer;
+.act-btn.edit {
+  background: #f0a020;
 }
 
-.menu {
-  position: absolute;
-  top: 34px;
-  right: 0;
-  min-width: 190px;
-  background: #fff;
-  border: 1px solid var(--border, rgba(0, 0, 0, 0.1));
-  border-radius: 9px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
-  padding: 4px;
-  z-index: 30;
-  display: flex;
-  flex-direction: column;
+.act-btn.del {
+  background: #ea6668;
 }
 
-.menu-item {
-  border: none;
-  background: transparent;
-  text-align: left;
-  padding: 7px 10px;
-  border-radius: 6px;
-  font-size: 12.5px;
-  font-family: inherit;
-  cursor: pointer;
-  color: var(--text, #1a1b1c);
+.act-btn:hover {
+  filter: brightness(0.94);
 }
 
-.menu-item:hover {
-  background: var(--head-bg, rgba(0, 0, 0, 0.06));
+.act-btn:active {
+  transform: translateY(1px);
 }
 
 .empty {

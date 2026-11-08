@@ -165,6 +165,8 @@ async function bootstrap(): Promise<void> {
       { label: '打开控制板 · 剪贴板', click: () => openPanel('clipboard') },
       { label: '打开控制板 · 密码本', click: () => openPanel('vault') },
       { label: '打开控制板 · 消息中心', click: () => openPanel('messages') },
+      { label: '打开控制板 · 任务追踪', click: () => openPanel('tasks') },
+      { label: '打开控制板 · 启动中心', click: () => openPanel('launcher') },
       { type: 'separator' },
       { label: '退出', click: () => app.quit() }
     ])
